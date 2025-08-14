@@ -1,0 +1,46 @@
+---
+title: "Sesión 7"
+author: "David Nexticapan Cortes"
+date: "2025-01-19"
+output: html_document
+---
+
+Problema: Una compañía de seguros de automóviles está interesada en analizar los patrones de reclamos realizados por sus clientes, desglosados por el día de la semana en que ocurrieron. La base de datos anual contiene información detallada sobre los clientes, las características de sus pólizas, y los incidentes reportados. Dentro de esta base de datos, la variable DayOfWeek identifica el día de la semana en que ocurrieron los incidentes.
+
+1. Calcular las proporciones por día de la semana
+Determina el porcentaje de incidentes que ocurrieron en cada día de la semana respecto al total de registros.
+
+2. Determinar el tamaño de muestra proporcional
+Calcula el tamaño de la muestra para cada día de la semana, asegurando que la muestra total sea de 500 registros.
+
+3. Seleccionar una muestra aleatoria proporcional
+Utiliza las proporciones calculadas para seleccionar de manera aleatoria los registros correspondientes a cada día de la semana.
+
+Cargamos las librerías a utilizar
+
+```{r, message=FALSE, warning=FALSE}
+library(dplyr)
+library(purrr)
+library(readxl)
+```
+
+```{r}
+# Importamos la base de datos
+fraude_asegurados <- read_excel("C:/Users/ACER/Desktop/BUAP PRIMAVERA 2025/Análisis de Datos/Sesiones/Sesión 7/fraud_oracle.xlsx")
+
+#Establecemos parámetros
+N_asegurados <- length(fraude_asegurados$Month)
+n_asegurados <- 500
+
+#Calculamos las proporciones y tamaños de muestra por estrato
+tamaños_muestra <- fraude_asegurados %>% 
+  count(DayOfWeek) %>% 
+  mutate(Proporciones = n / N_asegurados, Muestra = round(Proporciones * n_asegurados))
+ 
+# Seleccionamos la muestra para cada estrato
+base_muestra <- fraude_asegurados %>% 
+  group_by(DayOfWeek) %>% 
+  group_split() %>% 
+  map2_dfr(tamaños_muestra$Muestra, ~ sample_n(.x, size = .y, replace = F))
+```
+

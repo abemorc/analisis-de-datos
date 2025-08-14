@@ -1,0 +1,271 @@
+---
+title: 'Sesión 6: Técnicas de Muestreo Probabilísticas'
+author: "David Nexticapan Cortes"
+date: "2024-08-10"
+output: word_document
+---
+
+Instalamos las librerías a utilizar
+
+```{r, message=FALSE, warning=FALSE}
+library(dplyr)
+library(babynames)
+library(purrr)
+```
+
+# Muestreo Sistemático
+
+Ejemplo 1: Supongamos que un experto en seguros trabaja para una aseguradora de vida y está interesado en estudiar la duración promedio de las pólizas de seguro de vida que se han vendido durante el último año. La compañía cuenta con un total de 1500 pólizas y debe seleccionar una muestra representativa.
+
+1. Generamos una base de datos para aplicar esta técnica de muestreo.
+
+```{r}
+# Plantamos una semilla para reproducibilidad.
+set.seed(123)
+# Gneramos una base de asegurados.
+base_asegurados <- data.frame(Nombre = sample(babynames$name, size = 1500, replace = TRUE),
+                              Duración = round(runif(n = 1500, min = 1, max = 12)))
+# Mostramos los primeros resultados.
+head(base_asegurados)
+```
+
+2. Seleccionamos una muestra de tamaño 300.
+
+```{r}
+# Definimos parámetros
+N_poblacional <- 1500
+n_muestral <- 300
+
+# Calculamos la longitud del intervalo
+ancho_intervalo <- round(N_poblacional / n_muestral)
+  # floor: redondear hacia abajo
+  # ceiling: redondear hacia arriba
+  # round: redondea a partir del 0.5
+
+# Seleccionamos un número aleatorio a través de un MAS en dicho intervalo.
+set.seed(123)
+primer_elemento <- sample(x = 1:ancho_intervalo, size = 1)
+
+# Generamos la secuencia de elementos restantes
+secuencia <- seq(from = primer_elemento, to = N_poblacional, by = ancho_intervalo)
+head(secuencia)
+
+# Seleccionamos los elementos que formarán parte de la muestra
+base_muestra_asegurados <- base_asegurados[secuencia,]
+head(base_muestra_asegurados,10)
+```
+
+3. Calculamos la duración promedio de las pólizas
+
+```{r}
+promedio_muestra <- mean(base_muestra_asegurados$Duración)
+promedio_poblacional <- mean(base_asegurados$Duración)
+print(promedio_muestra); print(promedio_poblacional)
+```
+
+
+Ejemplo 2: Una universidad está interesada en evaluar el desempeño promedio de sus estudiantes en un examen estandarizado aplicado durante el último semestre. La universidad cuenta con un total de 1500 estudiantes que realizaron el examen. Para ahorrar tiempo y recursos, se ha decidido realizar un análisis sobre una muestra representativa de 300 estudiantes.
+
+1. Generamos una base de datos para practicar.
+
+```{r}
+set.seed(234)
+base_estudiantes <- data.frame(Nombre = sample(babynames$name, size = 1500, replace = TRUE),
+                              Calificación = round(runif(n = 1500, min = 4, max = 10)))
+head(base_estudiantes)
+```
+
+2. Seleccionamos una muestra de tamaño 300.
+
+```{r}
+# Definimos variables
+N_estudiantes <- 1500
+n_estudiantes <- 175
+
+# Calculamos la longitud del intervalo
+ancho_intervalo <- ceiling(N_estudiantes / n_estudiantes)
+
+# Seleccionamos un número aleatorio a través de un MAS en dicho intervalo.
+set.seed(123)
+primer_elemento <- sample(x = 1:ancho_intervalo, size = 1)
+
+# Generamos la secuencia de elementos restantes
+secuencia <- seq(from = primer_elemento, to = N_estudiantes, by = ancho_intervalo)
+print(secuencia)
+  # Con ceiling nos faltan elememntos
+  # Con floor nos pasamos de elementos*^
+
+# Calculamos el número de elementos faltantes
+n_faltantes <- n_estudiantes - length(secuencia)
+
+# Completamos la muestra
+if(n_faltantes > 0){
+  indices_no_seleccionados <- setdiff(1:N_estudiantes, secuencia)
+  indices_adicionales <- sample(indices_no_seleccionados, size = n_faltantes, replace = FALSE)
+  secuencia <- c(secuencia, indices_adicionales)
+}
+
+# Seleccionamos los elementos que formarán parte de la muestra
+base_muestra_estudiantes <- base_estudiantes[secuencia,]
+head(base_muestra_estudiantes,10)
+```
+
+3. Calculamos la calificación promedio.
+
+```{r}
+mean(base_muestra_estudiantes$Calificación)
+mean(base_estudiantes$Calificación)
+```
+
+
+# Muestreo Estratificado
+
+Ejemplo 3: Trabajas para una compañía de seguros de automóviles y estás interesado en estimar la proporción de asegurados que han presentado reclamos por accidentes de tráfico en diferentes regiones geográficas de México.
+
+1. Generamos una base de datos para practicar
+
+```{r}
+set.seed(123)
+cartera_asegurados <- data.frame(Nombre = sample(babynames$name, size = 1000, replace = F), 
+                                 Region = sample(c("Norte","Centro","Sur"), size = 1000, replace = T),
+                                 Reclamación = sample(c("Sí","No"), size = 1000, replace = T))
+head(cartera_asegurados)
+```
+
+2. Seleccionamos una muestra de tamaño 200 a través de un muestreo estratificado
+
+2.1. La muestra es igual en todos los estratos (por ejemplo: 67, 67 y 66)
+
+```{r}
+# Calculamos cuántos asegurados hay por región
+table(cartera_asegurados$Region)
+
+# Filtramos por región la base de datos con ayuda de la librería dplyr.
+asegurados_centro <- filter(cartera_asegurados, Region == "Centro")
+asegurados_norte <- filter(cartera_asegurados, Region == "Norte")
+asegurados_sur <- filter(cartera_asegurados, Region == "Sur")
+
+# Seleccionamos a los asegurados que forman parte de la muestra.
+set.seed(567)
+muestra_centro <- sample_n(asegurados_centro, size = 67, replace = FALSE)
+muestra_norte <- sample_n(asegurados_norte, size = 67, replace = FALSE)
+muestra_sur <- sample_n(asegurados_sur, size = 66, replace = FALSE)
+
+# Jutamos los individuos en un solo data.frame
+asegurados_muestra <- rbind(muestra_centro, muestra_norte, muestra_sur)
+View(asegurados_muestra)
+```
+
+Calculamos la proporción de reclamaciones por región
+
+```{r}
+table(asegurados_muestra$Region, asegurados_muestra$Reclamación)/200
+table(cartera_asegurados$Region, cartera_asegurados$Reclamación)/1000
+```
+
+
+2.2. La muestra es proporcional al tamaño de los estratos.
+
+```{r}
+# Calculamos las proporciones para cada región.
+N <- 1000
+n <- 200
+prop_centro <- length(asegurados_centro$Nombre) / N
+prop_norte <- length(asegurados_norte$Nombre) / N
+prop_sur <- length(asegurados_sur$Nombre) / N
+
+# Calculamos el tamaño de muestra para cada región en función de su proporción.
+n_centro <- round(prop_centro * n)
+n_norte <- round(prop_norte * n)
+n_sur <- round(prop_sur * n)
+
+# Comprobamos que la suma nos de el tamaño de muestra n = 200
+n_centro + n_norte + n_sur
+
+# Seleccionamos los elementos que formarán parte de la muestra
+set.seed(567)
+muestra_centro <- sample_n(asegurados_centro, size = n_centro, replace = FALSE)
+muestra_norte <- sample_n(asegurados_norte, size = n_norte, replace = FALSE)
+muestra_sur <- sample_n(asegurados_sur, size = n_sur, replace = FALSE)
+
+# Jutamos los individuos en un solo data.frame
+asegurados_muestra <- rbind(muestra_centro, muestra_norte, muestra_sur)
+head(asegurados_muestra)
+```
+
+Calculamos la proporción de reclamaciones por región
+
+```{r}
+table(asegurados_muestra$Region, asegurados_muestra$Reclamación)/200
+table(cartera_asegurados$Region, cartera_asegurados$Reclamación)/1000
+```
+
+Forma alternaativa: Esta forma sirve cuando los estratos son "muchos"
+
+```{r}
+# Plantamos la semilla para reprodubilidad
+set.seed(123)
+# Calcular proporciones y tamaños de muestra por estrato
+tamaños_muestra <- cartera_asegurados %>%
+  count(Region) %>%
+  mutate(Prop = n / N, Tamaño_Muestra = round(Prop * 200))
+
+# Muestreo estratificado
+asegurados_muestra <- cartera_asegurados %>%
+  group_by(Region) %>%
+  group_split() %>%
+  map2_dfr(tamaños_muestra$Tamaño_Muestra, ~ sample_n(.x, size = .y, replace = F))
+
+# Verificar la muestra
+head(asegurados_muestra)
+
+# Calculamos las proporciones
+table(asegurados_muestra$Region, asegurados_muestra$Reclamación)/200
+table(cartera_asegurados$Region, cartera_asegurados$Reclamación)/1000
+```
+
+Problema: Una compañía de seguros de automóviles está interesada en analizar los patrones de reclamos realizados por sus clientes, desglosados por el día de la semana en que ocurrieron. La base de datos anual contiene información detallada sobre los clientes, las características de sus pólizas, y los incidentes reportados. Dentro de esta base de datos, la variable DayOfWeek identifica el día de la semana en que ocurrieron los incidentes.
+
+1. Calcular las proporciones por día de la semana
+Determina el porcentaje de incidentes que ocurrieron en cada día de la semana respecto al total de registros.
+
+2. Determinar el tamaño de muestra proporcional
+Calcula el tamaño de la muestra para cada día de la semana, asegurando que la muestra total sea de 500 registros.
+
+3. Seleccionar una muestra aleatoria proporcional
+Utiliza las proporciones calculadas para seleccionar de manera aleatoria los registros correspondientes a cada día de la semana.
+
+Cargamos las librerías a utilizar
+
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(purrr)
+```
+
+```{r}
+# Importamos la base de datos
+fraudes <- read_excel("fraud_oracle.xlsx")
+
+# Calculamos las proporciones y el tamaño de muestra por estrato
+proporciones <- fraudes %>%
+  count(DayOfWeek) %>%             # Contar la frecuencia de cada estrato
+  mutate(Prop = n / sum(n), # Calculamos las proporciones
+         Tamaño_Muestra = round(Prop * 1000)) # Calculamos el tamaño de muestra.
+
+# Seleccionamos la muestra estratificada proporcional
+muestra <- fraudes %>% 
+  group_by(DayOfWeek) %>% 
+  group_split() %>% 
+  map2_dfr(proporciones$Tamaño_Muestra, ~ sample_n(.x, size = .y, replace = FALSE))
+```
+
+La función group_split() divide los datos agrupados en una lista de sub-data frames, uno para cada grupo creado en el paso anterior (DayOfWeek). Es decir, obtendrás una lista donde cada elemento es un subconjunto de datos correspondiente a un día de la semana específico.
+
+map2_dfr() es una función que itera sobre dos objetos al mismo tiempo (en este caso, la lista de grupos y los tamaños de muestra), y devuelve un solo data frame. La "d" en dfr significa que el resultado será combinado en un único data.frame (es decir, no será una lista, sino un data frame combinado).
+
+.x: Representa cada grupo de datos generado por group_split(). Es el subconjunto de datos correspondiente a un día de la semana.
+
+.y: Representa el tamaño de muestra para cada grupo, tomado de proporciones$Tamaño_Muestra.
+
+sample_n(.x, size = .y, replace = FALSE): Esta función selecciona aleatoriamente size = .y observaciones del grupo .x

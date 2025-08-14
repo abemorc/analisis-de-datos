@@ -1,0 +1,47 @@
+---
+title: 'Sesión 5: Muestreo Aleatorio Simple'
+author: "David Nexticapan Cortes"
+date: "2025-01-13"
+output: html_document
+---
+
+Contexto: Un experto trabaja para una compañía de seguros de salud y está interesado en determinar la proporción de asegurados que han presentado reclamaciones médicas en el último año en toda la población asegurada.
+
+Instalamos las liberías a utilizar
+
+```{r, message=FALSE, warning=FALSE}
+library(dplyr)
+library(babynames)
+```
+
+Creamos una base de datos suponiendo que es nuestra base de asegurados
+
+```{r}
+# Plantamos una semilla para reproducibilidad de datos.
+set.seed(123)
+
+# Generamos un vector aleatorio de nombres.
+asegurados <- sample(babynames$name, size = 2000, replace = FALSE)
+
+#Generamos un vector aleatorio de presentación de reclamaciones
+presenta_reclamacion <- sample(c("Sí","No"), size = 2000, replace = TRUE)
+
+# Creamos un data.frame con la información de los asegurados
+cartera_asegurados <- data.frame(Nombre = asegurados, Reclamación = presenta_reclamacion)
+head(cartera_asegurados)
+```
+
+Seleccionamos una muestra de tamaño 500 a través de un MAS
+
+```{r}
+set.seed(123)
+muestra_asegurados <- sample_n(cartera_asegurados, size = 500, replace = FALSE)
+head(muestra_asegurados)
+```
+
+Calculamos la proporción de asegurados que han y no han presentado reclamaciones
+
+```{r}
+table(muestra_asegurados$Reclamación)/500
+```
+

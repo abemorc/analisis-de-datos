@@ -1,0 +1,111 @@
+---
+title: "Sesión 7 Parte 2"
+author: "David Nexticapan Cortes"
+date: "2025-01-19"
+output: html_document
+---
+
+# Problema de los extraterrestres
+
+Generamos la primera simulación
+
+```{r}
+simulacion1 <- rbinom(n = 100, size = 1, prob = 0.61)
+print(simulacion1)
+table(simulacion1)
+```
+
+Generamos la segunda simulación
+
+```{r}
+simulacion2 <- rbinom(n = 100, size = 1, prob = 0.61)
+print(simulacion2)
+table(simulacion2)
+```
+
+Generamos 10,000 simulaciones
+
+```{r}
+# Establecemos parámetros
+num_simulaciones <- 10000
+n <- 100  # Tamaño de la muestra
+p <- 0.61  # Probabilidad de éxito
+prop_exito <- c()
+
+# Generar simulaciones
+for(i in 1:num_simulaciones){
+  # Generas 100 variables aleatorias Bernoulli con probabilidad de éxito 0.61
+  prop_exito[i] <- sum(rbinom(n = 100, size = 1, prob = 0.61)) / 100
+}
+
+# Resultados
+print(mean(prop_exito))  # Media de las proporciones
+
+# Gráficos
+hist(prop_exito, probability = TRUE, col = "steelblue", xlab = "Proporción de Éxito", main = "Histograma de Proporciones Muestrales")
+
+# Agregamos la linea de densidad empírica.
+lines(density(prop_exito), col = "red", lwd = 3)
+
+# Agregar curva de densidad normal teórica
+curve(dnorm(x, mean = p, sd = sqrt(p * (1 - p) / n)), col = "black", lwd = 2, add = TRUE)
+legend("topright", legend = c("Densidad Empírica", "Normal Teórica"), col = c("red", "black"), lwd = 2)
+```
+
+# Cálculo de Valor Crítico (Ejemplos)
+
+```{r}
+# Al 95% de confianza 
+nivel_confianza <- 0.95
+alpha <- 1 - nivel_confianza
+v_critico1 <- round(qnorm(p = 1 - alpha/2, lower.tail = T),3) #Cola izquierda
+v_critico2 <- round(qnorm(p = alpha/2, lower.tail = F), 3)
+```
+
+# Intervalo de confianza para proporciones
+
+```{r}
+conf_interval_p <- function(exitos, n, conf_level){
+  p_muestral <- exitos / n
+  q_muestral <- 1 - p_muestral
+  alfa <- 1 -  conf_level
+  v_critico <- round(qnorm(1 - alfa / 2, lower.tail = TRUE),3)
+  error <- v_critico * sqrt(p_muestral * q_muestral / n)
+  intervalo <- round(c(p_muestral - error, p_muestral + error),3)
+  cat("Tenemos una confianza del", conf_level*100, "% de que el intervalo (", paste(intervalo, collapse = ","), ") realmente contiene el valor verdadero de 𝑝.\n")
+}
+```
+
+Construya un intervalo de confianza del 95% para la proporción de personas que creen en los extraterrestres
+
+```{r}
+solución1 <- conf_interval_p(61, 100, 0.95)
+```
+
+## Actividad 1
+
+Posposición de la muerte. Una hipótesis interesante y del dominio público dice que los individuos pueden posponer temporalmente su muerte para estar presentes en una festividad o en un suceso importante como un cumpleaños. En un estudio de este fenómeno, se descubrió que la semana previa y la semana posterior a Navidad hubo un total de 12,000 muertes, y que 6,062 de ellas ocurrieron la semana anterior a la Navidad.
+
+  a. Construya un estimado del intervalo de confianza al 95% para la proporción de muertes ocurridas la semana anterior a Navidad, con respecto a las muertes totales durante la semana previa y la semana posterior a Navidad y da una interpretación de este intervalo. 
+
+```{r}
+solución2 <- conf_interval_p(6062, 12000, 0.95)
+```
+
+  b. Con base en el resultado, ¿existe algún indicador de que la gente pueda posponer temporalmente su muerte para estar presente en Navidad? ¿Por qué?  
+
+Respuesta: Como el intervalo contiene al 0.50, no existe suficiente evidencia estadística para sustentar la aseveración de que la gente pueda posponer temporalmente su muerte para estar presente en Navidad. 
+
+## Actividad 2
+
+Selección del género. El Genetics and IVF Institute realizó una prueba clínica del método XSORT, diseñado para incrementar la probabilidad de concebir una niña. Para cuando se escribía esta investigación, ya habían nacido 325 bebés de padres que utilizaron el método XSORT y 295 de ellos eran niñas. 
+
+  a. Utilice los datos muestrales para construir un estimado del intervalo de confianza del 99% del porcentaje de niñas nacidas de padres que utilizaron el método XSORT.
+
+```{r}
+solución3 <- conf_interval_p(295, 325, 0.99)
+```
+
+  b. Con base en el resultado, ¿parece que el método XSORT es efectivo? ¿Por qué?
+
+Respuesta: Dado que el intervalo de confianza al 99% está completamente por encima del 50%, podemos concluir que el método XSORT es efectivo para incrementar la probabilidad de concebir una niña. 
