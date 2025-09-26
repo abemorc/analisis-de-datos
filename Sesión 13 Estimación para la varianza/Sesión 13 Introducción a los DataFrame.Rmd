@@ -1,0 +1,176 @@
+---
+title: 'Sesión 16: Data Frame'
+author: "David Nexticapan Cortes"
+date: "2024-07-23"
+output: word_document
+---
+
+Los data frames son estructuras de datos bidimensionales en R, similares a una tabla de base de datos o una hoja de cálculo. La gran ventaja de los data frames es que permiten almacenar columnas con diferentes tipos de datos (números, caracteres, factores, etc.), siempre y cuando cada columna contenga un único tipo de dato.
+
+Algunas características clave de los data frames son:
+
+  1. Dimensiones: Los data frames tienen filas y columnas, donde las columnas representan variables y las filas representan observaciones.
+  2. Tipos de Datos: Cada columna debe contener un solo tipo de dato (numérico, texto, lógico, etc.), pero diferentes columnas pueden tener distintos tipos de datos.
+  3. Manipulación: Los data frames permiten acceder, modificar, y operar sobre sus elementos de manera eficiente usando diversas funciones en R.
+
+## Mi primer data frame
+
+Para crear un DataFrame en R usamos la función data.frame(). 
+
+A continuación se muestra un ejemplo de cómo crear un data frame con datos aleatorios de estudiantes, que incluye nombre, sexo, edad, estado de procedencia e ingresos.
+
+```{r}
+library(babynames)
+set.seed(123)
+random_seq <- sample(1:length(babynames$name), 20, replace = TRUE)
+print(random_seq)
+
+#Extraemos los nombres de babynames
+nombres <- babynames$name[random_seq]
+print(nombres)
+
+#Extraemos el sexo 
+sexo <- babynames$sex[random_seq]
+print(sexo)
+
+#Generamos un vector aleatorio de edades
+edad <- round(runif(20,18,21))
+print(edad)
+
+#Creamos un vector aleatorio de estado de procedencia
+estados <- c("Puebla", "Tlaxcala", "Guerrero", "Ciudad de México", "Oaxaca")
+edo_procedencia <- sample(estados, 20, replace = TRUE)
+print(edo_procedencia)
+
+#Creamos un vector aleatorio de ingreso mensual
+ingreso_mensual <- round(rnorm(20, 7500, 1000))
+print(ingreso_mensual)
+
+#Creamos un data frame
+base_estudiantes <- data.frame(Nombre = nombres,
+                               Sexo = sexo,
+                               Edad = edad,
+                               Estado = edo_procedencia,
+                               Ingreso = ingreso_mensual)
+print(base_estudiantes)
+View(base_estudiantes)
+```
+
+## Agregar nuevas columnas
+
+Una vez creado el data frame, puedes agregar más columnas como estatura, peso y calificaciones:
+  
+```{r}
+# Vector aleatorio de estaturas
+estaturas <- round(rnorm(20,1.70,0.10),2)
+print(estaturas)
+
+# Vector aleatorio de pesos
+peso <- round(rnorm(20,65,10))
+print(peso)
+
+#Agregamos estas columnas al data frame
+base_estudiantes <- data.frame(base_estudiantes,
+                               Estatura = estaturas,
+                               Peso = peso)
+View(base_estudiantes)
+
+# Matriz aleatoria de calificaciones en tres exámenes
+calificaciones <- matrix(round(runif(60,5,10)),20,3)
+print(calificaciones)
+
+#Agreamos esta matriz al data frame
+base_estudiantes <- data.frame(base_estudiantes,
+                               calificaciones)
+View(base_estudiantes)
+
+#Cambiamos el nombre de las últimas tres columnas
+names(base_estudiantes)[8] <- "Examen 1"
+names(base_estudiantes)[9] <- "Examen 2"
+names(base_estudiantes)[10] <- "Examen 3"
+View(base_estudiantes)
+```
+
+
+## Operaciones con columnas
+
+La función attach() nos permite tener acceso a las columnas del data frame para poder operar entre ellas. Mientras, que la función detach() es utíl para cerrar el data frame cuando ya no queremos tener acceso a las columnas.
+
+```{r}
+attach(base_estudiantes)
+
+#Calculas el IMC de los estudiantes peso / estatura ^ 2
+IMC <- Peso / (Estatura ^ 2)
+
+#Podemos agregar el IMC al data frame
+base_estudiantes$IMC <- IMC #Forma alternativa
+View(base_estudiantes)
+
+#Podemos generar un histograma del IMC
+hist(IMC, col = "purple", xlab = "IMC", ylab = "Frecuencia", main = "IMC Estudiantes")
+
+detach(base_estudiantes)
+```
+
+Alternativamente, puedes operar directamente sobre las columnas sin usar attach() y detach():
+
+```{r}
+#Se calcula el promedio de las calificaciones
+promedio <- round(rowMeans(base_estudiantes[8:10]),2)
+print(promedio)
+
+#Forma alternativa
+promedio1 <- round((base_estudiantes$`Examen 1` + base_estudiantes$`Examen 2` + base_estudiantes$`Examen 3`) / 3, 2)
+print(promedio1)
+
+#Se agrega el promedio al data frame
+base_estudiantes$Promedio <- promedio
+View(base_estudiantes)
+```
+
+Puedes exportar el data frame a un archivo Excel usando el paquete openxlsx:
+
+```{r}
+library(openxlsx) #Instalar paquetería con el mismo nombre. 
+write.xlsx(base_estudiantes, "Mi primer data frame.xlsx")
+```
+
+## Actividad 2
+
+Un analista financiero desea evaluar el Retorno sobre el Patrimonio (ROE) de varias empresas para decidir en cuál invertir. El ROE se calcula como:
+
+$ROE = (Beneficio Neto / Patrimonio Neto) * 100$
+
+  1.Crea un data frame para 20 empresas con las siguientes columnas:
+    Nombre de la empresa: "Empresa 1", "Empresa 2", …, "Empresa 20".
+    Patrimonio neto: un vector aleatorio generado con runif() con valores entre 750,000 y 1,000,000. set.seed(123)
+    Beneficio neto: un vector aleatorio generado con runif() con valores entre 50,000 y 300,000. set.seed(123)
+    ROE: calculado como el beneficio neto dividido por el patrimonio neto, multiplicado por 100. set.seed(123)
+
+  2. Agrega una columna que indique "Sí obtiene el rendimiento esperado" si el ROE es mayor o igual al 16%, y "No obtiene el rendimiento esperado" en caso contrario.
+
+  3. Imprime los nombres de las empresas que tienen un ROE mayor al 16%.
+
+```{r}
+set.seed(123)
+
+#Creamos el data frame
+empresa <- paste("Empresa", 1:20)
+patrimonio_neto <- round(runif(20,750000,1000000),2)
+beneficio_neto <- round(runif(20,50000,300000),2)
+ROE <- round((beneficio_neto / patrimonio_neto) * 100,1)
+base_empresas <- data.frame(Nombre = empresa,
+                            Patrimonio = patrimonio_neto,
+                            Beneficio = beneficio_neto,
+                            ROE = ROE)
+
+for (i in 1:length(base_empresas$Nombre)){
+  if(ROE[i] > 16){
+    base_empresas$Estatus[i] <- "Logrado"
+  } else {
+    base_empresas$Estatus[i] <- "No logrado"
+  }
+}
+
+View(base_empresas)
+```

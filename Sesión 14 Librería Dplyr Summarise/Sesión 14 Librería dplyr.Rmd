@@ -1,0 +1,148 @@
+---
+title: 'Sesión 14: Librería dplyr'
+author: "David Nexticapan Cortes"
+date: "2025-02-03"
+output: html_document
+---
+
+# Librería dplyr
+
+dplyr es una de las librerías más populares y poderosas en R para la manipulación de datos. Forma parte del tidyverse, un conjunto de paquetes diseñados para facilitar el análisis de datos. Proporciona una gramática coherente para trabajar con data frames, permitiendo realizar operaciones complejas de manera concisa y legible, facilitando su aplicación.
+
+Cargamos las librerías a utlizar
+```{r, message=FALSE, warning=f}
+library(readxl)
+library(dplyr)
+```
+
+Importamos la base de datos a trabajar
+```{r}
+smoking_data <- read_excel("D:/BUAP PRIMAVERA 2025/Análisis de Datos/Sesiones/Sesión 14 Librería Dplyr Summarise/smoking_health_data_final.xlsx")
+head(smoking_data)
+```
+
+# Principales funciones de dplyr
+
+1. Select: Selecciona columnas específicas de un data.frame. Es util cuando queremos trabajar con una parte específica del data.frame, por ejemplo, con la edad, el sexo y si es fumador actual.
+
+```{r}
+# solo la edad
+age_smoker <- select(smoking_data, age)
+head(age_smoker)
+mode(age_smoker) # Es de tipo lista
+class(age_smoker) # Pertenece a la clase de los data.frame
+
+# De forma alternativa
+age_smoker1 <- smoking_data$age
+head(age_smoker1)
+mode(age_smoker1) # Pertenece al tipo numerico
+class(age_smoker1) # Pertenece a la clase numérica
+
+# Si requiero dos columnas por ejemplo edad y sexo
+age_sex_smoker <- select(smoking_data, age, sex)
+head(age_sex_smoker) # Pertenece a la clase de los data.frame
+
+# Si queremos tres columnas, por ejemplo edad, sexo y fumador actual.
+age_sex_smoker_data <- select(smoking_data, 1:3) # Podemos indicar con índices las posiciones de las columnas.
+head(age_sex_smoker_data)
+```
+
+2. filter: Filtra las filas según una proposición lógica. Esta función es clave cuando queremos segementar los datos. 
+
+```{r}
+# Filtrar por sexo
+male_smoker <- filter(smoking_data, sex == "male")
+head(male_smoker)
+female_smoker <- filter(smoking_data, sex == "female")
+head(female_smoker)
+
+# Filtrar por edad (menores a 35 años)
+young_smoker <- filter(smoking_data, age <= 35)
+head(young_smoker)
+
+# Podemos filtrar por más de un criterio
+female_young_smoker <- filter(smoking_data, sex == "female", age <= 35)
+head(female_young_smoker)
+
+veteran_male_smoker_current <- filter(smoking_data, sex == "male", age >= 35, current_smoker == "yes")
+head(veteran_male_smoker_current)
+```
+
+3. arrange: Ordena las filas del data.frame. Sirve para organizar las filas de manera ascendente o descendente lo que resulta útil para el análisis de datos.
+
+```{r}
+# Podemos ordenar por edad, de menor a mayor
+arrange_age <- arrange(smoking_data, age)
+head(arrange_age)
+
+# Podemos ordenar por edad y colesterol
+arrange_age_chol <- arrange(smoking_data, chol)
+head(arrange_age)
+
+# Podemos arreglar de forma descendnete la edad y ascenente el colesterol
+arrange_age_chol1 <- arrange(smoking_data, desc(age), chol)
+head(arrange_age_chol1)
+```
+
+4. mutate: Crear nuevas columnas o modificar las ya existentes. Permite modificar le data.frame añadiendo nuevas columnas basadas en cálculos o tranformaciones.
+
+```{r}
+set.seed(123)
+smoking_data_modified <- mutate(smoking_data, Weight = round(rnorm(n(), 65, 5),2), Height = round(rnorm(n(), 1.60, .05),2))
+head(smoking_data_modified)
+
+# Agregar una columna del IMC
+smoking_data_modified <- mutate(smoking_data_modified, IMC = Weight / (Height ^ 2))
+head(smoking_data_modified)
+```
+
+5. count: Cuenta las ocurrencias por grupo. Es ideal para ver la frecuencia de alguna variable categórica.
+
+```{r}
+# Contamos las personas por sexo
+count_sex <- count(smoking_data, sex)
+print(count_sex) # Pertenece a la clase de los data.frame
+```
+
+6. summarise: Genera un resumen de estadísticas descriptivas.
+```{r}
+resumen <- summarise(smoking_data, Colesterol_Medio = mean(chol, na.rm = T), Colesterol_Varianza = var(chol, na.rm = T))
+print(resumen)
+
+# Podemos contar la cantidad de valores NA
+NA_chol <- summarise(smoking_data,Total_NA = sum(is.na(chol)))
+NA_chol
+```
+
+7. group_by: Agrupa el data.frame por una o más variables. Es util cuando queremos realizar estadísticas descriptivas por grupos.
+```{r}
+grupos_sexo <- group_by(smoking_data, sex)
+resumen_por_sexo <- summarise(grupos_sexo,
+                              Total = n(),
+                              Media = mean(age, na.rm = T),
+                              Varianza = var(age, na.rm = T),
+                              Mediana = median(age, na.rm = T))
+resumen_por_sexo
+
+# Podemos dividir por sexo y fumadores actuales y no actuales
+grupos_sexo_fumadores <- group_by(smoking_data, sex, current_smoker)
+resultados <- summarise(grupos_sexo_fumadores,
+                        Total = n(),
+                        Media = mean(age, na.rm = T),
+                        Varianza = var(age, na.rm = T),
+                        Mediana = median(age, na.rm = T),
+                        .groups = "drop")
+resultados
+```
+
+8. piping: El operador %>% facilita la escritura fluida y clara de código en R, permitiendo encadenar operaciones sin necesidad de crear variables intermedias.
+```{r}
+grupos_sexo1 <- smoking_data %>% 
+  group_by(sex) %>% 
+  summarise(Total = n(),
+            Media = mean(age),
+            Varianza = var(age),
+            Mediana = median(age)) %>% 
+  print()
+```
+

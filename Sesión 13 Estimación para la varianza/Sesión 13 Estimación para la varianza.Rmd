@@ -1,0 +1,86 @@
+---
+title: 'Sesión 13: Estimación para la varianza poblacional'
+author: "David Nexticapan Cortes"
+date: "2025-02-02"
+output: html_document
+---
+
+# Distribución chi-cuadrada
+
+Graficamos la curva de densidad de la distribución chi-cuadrada con diferentes grados de libertad.
+
+```{r}
+x_values <- seq(from = 0, to = 50, length.out = 1000)
+y_values <- dchisq(x_values, df = 5)
+plot(x = x_values, y = y_values, type = "l", col = "blue3", lwd = 2)
+
+y_values1 <- dchisq(x_values, df = 10)
+lines(x_values, y_values1, col = "red", lwd = 2)
+
+y_values2 <- dchisq(x_values, df = 20)
+lines(x_values, y_values2, col = "purple3", lwd = 2)
+
+y_values3 <- dchisq(x_values, df = 30)
+lines(x_values, y_values3, col = "black", lwd = 2)
+
+legend("topright", legend = c("df = 5", "df = 10", "df = 20", "df = 30"), col = c("blue3", "red", "purple3", "black"), lwd = c(2,2,2,2))
+```
+
+# Valores críticos de la distribución chi-cuadrada
+
+Calcular los valores críticos con un $\alpha=0.05$ en la distirbución chi-cuadrada con $n = 10$
+
+```{r}
+alpha <- 0.05
+v_critico_izquierda <- qchisq(p = alpha / 2, df = 10 - 1, lower.tail = T) 
+v_critico_derecha <- qchisq(p = 1 - alpha / 2, df = 10 - 1, lower.tail = T) 
+v_critico_izquierda ; v_critico_derecha
+```
+
+# Intervalo de confianza para estimar a la varianza poblacional.
+
+```{r}
+# Varianza:
+intervalo_varianza <- function(sigma_muestral, n, alpha){
+  v_derecho <- qchisq(1 - alpha / 2, df = n - 1, lower.tail = T)
+  v_izquiero <- qchisq(alpha / 2, df = n - 1, lower.tail = T)
+  l_inferio <- round(((n - 1) * sigma_muestral ^ 2) / v_derecho,3)
+  l_superior <- round(((n - 1) * sigma_muestral ^ 2) / v_izquiero,3)
+  cat("El intervalo de confianza es: (", l_inferio, ",", l_superior, ")")
+}
+
+# Desviación Estándar
+intervalo_sigma <- function(sigma_muestral, n, alpha){
+  v_derecho <- qchisq(1 - alpha / 2, df = n - 1, lower.tail = T)
+  v_izquiero <- qchisq(alpha / 2, df = n - 1, lower.tail = T)
+  l_inferio <- round(sqrt(((n - 1) * sigma_muestral ^ 2) / v_derecho),3)
+  l_superior <- round(sqrt(((n - 1) * sigma_muestral ^ 2) / v_izquiero),3)
+  cat("El intervalo de confianza es: (", l_inferio, ",", l_superior, ")")
+}
+```
+
+Problema 1: Una compañía de seguros de automóviles está interesada en evaluar la variabilidad en el tiempo de liquidación de siniestros en una categoría específica de reclamaciones. El tiempo de liquidación se define como la cantidad de tiempo en días que transcurre desde que se presenta una reclamación hasta que se completa el proceso de liquidación.
+
+Para realizar esta evaluación, la compañía selecciona una muestra aleatoria de 100 reclamaciones dentro de la categoría en cuestión. Usa la base de datos “TiempoLiquidacionSiniestros” que tiene el registro del tiempo en días que ha tomado liquidar cada una de estas reclamaciones. 
+
+¿Cuál es el intervalo de confianza del 95% para la varianza del tiempo de liquidación de siniestros en esta categoría de reclamaciones de la compañía de seguros de automóviles?
+
+```{r}
+# Importamos la base de datos
+library(readxl)
+TiempoLiquidaciónSiniestros <- read_excel("D:/BUAP PRIMAVERA 2025/Análisis de Datos/Sesiones/Sesión 13 Estimación para la varianza/TiempoLiquidaciónSiniestros.xlsx")
+intervalo_varianza(sigma_muestral = sd(TiempoLiquidaciónSiniestros$Días), n = length(TiempoLiquidaciónSiniestros$Caso), alpha = 0.05)
+```
+
+Problema 2: En un estudio de los efectos sobre los bebés cuyas madres consumían cocaína durante el embarazo, se obtuvieron los siguientes datos muéstrales de pesos de bebés al nacer (consultar base de datos de Excel). 
+
+Utilice los datos muestrales obtenidas a través de un muestreo aleatorio simple para construir un estimado del intervalo de confianza del 95% para la desviación estándar de todos los pesos al nacer de hijos de madres que consumieron cocaína durante el embarazo.  
+
+Con base en el resultado, ¿parece que la desviación estándar difiere de la desviación estándar de 696 g de los pesos al nacer de hijos de madres que no consumieron cocaína durante el embarazo? 
+
+```{r}
+# Importamos la base de datos
+Base_bebés_pesos <- read_excel("D:/BUAP PRIMAVERA 2025/Análisis de Datos/Sesiones/Sesión 13 Estimación para la varianza/Base_bebés_pesos.xlsx")
+intervalo_sigma(sigma_muestral = sd(Base_bebés_pesos$`Peso (gramos)`), n = length(Base_bebés_pesos$Nombre), alpha = 0.05)
+```
+

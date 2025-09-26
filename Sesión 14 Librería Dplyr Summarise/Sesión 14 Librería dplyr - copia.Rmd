@@ -1,0 +1,119 @@
+---
+title: 'Sesión 14: Librería dplyr'
+author: "David Nexticapan Cortes"
+date: "2025-02-03"
+output: html_document
+---
+
+# Librería dplyr
+
+dplyr es una de las librerías más populares y poderosas en R para la manipulación de datos. Forma parte del tidyverse, un conjunto de paquetes diseñados para facilitar el análisis de datos. Proporciona una gramática coherente para trabajar con data frames, permitiendo realizar operaciones complejas de manera concisa y legible, facilitando su aplicación.
+
+Cargamos las librerías a utlizar
+```{r, message=FALSE, warning=f}
+library(dplyr)
+library(readxl)
+```
+
+Importamos la base de datos a trabajar
+```{r}
+data_smoker <- read_excel("smoking_health_data_final.xlsx")
+mode(data_smoker)
+class(data_smoker)
+View(data_smoker)
+```
+
+# Principales funciones de dplyr
+
+1. Select: Selecciona columnas específicas de un data.frame. Es util cuando queremos trabajar con una parte específica del data.frame, por ejemplo, con la edad, el sexo y si es fumador actual.
+
+```{r}
+# Si deseamos trabajar solo con la edad
+age_smoker <- select(data_smoker, age)
+age_smoker
+class(age_smoker)
+
+age_smoker1 <- data_smoker$age
+age_smoker1
+class(age_smoker1)
+
+# Si deseamos más de un atributo:
+age_sex_smoker <- select(data_smoker, age, sex)
+age_sex_smoker
+#Forma alternativa
+age_sex_smoker1 <- select(data_smoker, c(age, sex))
+age_sex_smoker1
+
+age_sex_current_smoker <- select(data_smoker, age, sex, current_smoker)
+age_sex_current_smoker
+
+# Forma alternativa
+age_sex_current_smoker1 <- select(data_smoker, 1:3)
+age_sex_current_smoker1
+```
+
+2. filter: Filtra las filas según una proposición lógica. Esta función es clave cuando queremos segementar los datos. 
+
+```{r}
+# Filtramos la base de datos para female
+female_smoker <- filter(data_smoker, sex == "female")
+female_smoker
+
+# Filtramos la base de datos para hombres no fumadores actuales
+male_smoker_no_current <- filter(data_smoker, sex == "male", current_smoker == "no")
+male_smoker_no_current
+
+# Filtramos la base de datos para jóvenes menores de 40 años que son fumadores actuales y que tienen un colesterol mayor a 150.
+young_smoker <- filter(data_smoker, age < 40, current_smoker == "yes", chol > 150)
+young_smoker
+```
+
+3. arrange: Ordena las filas del data.frame. Sirve para organizar las filas de manera ascendente o descendente lo que resulta útil para el análisis de datos.
+
+```{r}
+age_arrange_smoker <- arrange(data_smoker, age)
+age_arrange_smoker
+
+age_chol_arrange_smoker <- arrange(data_smoker, age, desc(chol))
+age_chol_arrange_smoker
+```
+
+4. mutate: Crear nuevas columnas o modificar las ya existentes. Permite modificar le data.frame añadiendo nuevas columnas basadas en cálculos o tranformaciones.
+
+```{r}
+set.seed(123)
+peso <- round(rnorm(n = length(data_smoker$age), mean = 70, sd = 5),1)
+data_smoker1 <- mutate(data_smoker, Peso = peso)
+data_smoker1
+
+altura <- round(rnorm(n = length(data_smoker$age), mean = 1.65, sd = 0.05),2)
+estatus <- sample(x = c("Solter@", "Casad@", "Divorciad@"), size = length(data_smoker$age), replace = T)
+
+data_smoker1 <- mutate(data_smoker1, Altura = altura, Estatus = estatus)
+data_smoker1
+```
+
+5. count: Cuenta las ocurrencias por grupo. Es ideal para ver la frecuencia de alguna variable categórica.
+
+```{r}
+num_sex <- count(data_smoker, sex)
+num_sex
+
+table(data_smoker$sex)
+```
+
+6. summarise: Genera un resumen de estadísticas descriptivas.
+```{r}
+
+```
+
+7. group_by: Agrupa el data.frame por una o más variables. Es util cuando queremos realizar estadísticas descriptivas por grupos.
+```{r}
+
+```
+
+8. piping: El operador %>% facilita la escritura fluida y clara de código en R, permitiendo encadenar operaciones sin necesidad de crear variables intermedias.
+```{r}
+
+```
+

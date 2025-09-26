@@ -1,0 +1,471 @@
+---
+title: "Prueba de Hipótesis Para Medias"
+author: "David Nexticapan Cortes"
+date: "2024-04-01"
+output: word_document
+---
+
+Cargamos librerías
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(ggplot2)
+library(fitdistrplus)
+library(car) # Prueba de Kolmogorov
+library(nortest) # Prueba de Anderson Darling
+library(tseries) # Prueba de Jarque Bera
+library(BSDA) # Prueba z.test
+library(dplyr)
+```
+
+
+# **Análisis de Normalidad**
+
+```{r}
+# Creamos un vector aleatorio de datos normales.
+set.seed(123)
+datos <- round(rnorm(500, 20000, 5000),2)
+
+# Quitamos la notación sientífica.
+options(scipen = 999)
+
+# Creamos un data.frame con los datos
+df <- data.frame(datos = datos)
+
+# Calculamos el número de bins para nuestro gráfico
+bins_scott <- nclass.scott(datos)
+
+# Creamos el gráfico
+ggplot(df, aes(x = datos)) +
+  geom_histogram(aes(y = after_stat(density)), bins = bins_scott, fill = "gray", color = "black") +
+  geom_density(color = "blue4", lwd = 1) +
+  stat_function(fun = dnorm, args = list(mean = mean(datos), sd = sd(datos)), color = "red", lwd = 2)+
+  labs(title = "Histograma", x = "Valores", y = "Densidad") +
+  theme_minimal()
+```
+
+## Gráfico QQ-Norm
+
+```{r}
+qqPlot(datos)
+```
+
+## Contraste de Hipótesis
+
+$H_0: X_{k,P}$ Sigue una distribución significativamente normal.
+$H_0: X_{k,P}$ No sigue una distribución significativamente normal.
+
+**Test de Shapiro Wilk**
+```{r}
+set.seed(123)
+datos1 <- rnorm(100, 1000, 50)
+shapiro.test(datos1) # Como p-value = 0.93497 > 0.05 No se rechaza la hipótesis nula, por lo que existe suficiente evidencia estadística para sustentar la aseveración de que los datos siguen una distribución significativamente normal.
+```
+
+**Test de Kolmogorov Smirnov**
+```{r}
+lillie.test(datos1) # Como p-value = 0.5575 > 0.05 No se rechaza la hipótesis nula, por lo que existe suficiente evidencia estadística para sustentar la aseveración de que los datos siguen una distribución significativamente normal.
+```
+
+**Test Anderson - Darling**
+```{r}
+ad.test(datos1)
+# Como p-value = 0.9104 > 0.05 No se rechaza la hipótesis nula, por lo que existe suficiente evidencia estadística para sustentar la aseveración de que los datos siguen una distribución significativamente normal.
+```
+
+**Test Jarque - Bera**
+```{r}
+jarque.bera.test(datos1)
+# Como p-value = 0.9189 > 0.05 No se rechaza la hipótesis nula, por lo que existe suficiente evidencia estadística para sustentar la aseveración de que los datos tienen curtósis y asimetría de una normal.
+```
+
+#Problema Pesos de los M$M
+
+Se presentan los pesos de 13 dulces M&M elegidos al azar de una bolsa que contiene 465 dulces cuyo contenido neto marcado en la etiqueta es de 396.9g.
+
+La desviación estándar de todos los dulces M&M que están en la bolsa es 𝜎=0.0565 g. 
+
+Utilice los datos muestrales con un nivel de significancia de 0.05 para probar la aseveración de un gerente de producción de que los dulces M&M en realidad tienen una media mayor que 0.8535 g, por lo que los consumidores están recibiendo una cantidad mayor de la indicada en la etiqueta. 
+
+Pesos: 0.751, 0.841, 0.856, 0.966, 0.859, 0.857, 0.942, 0.873, 0.809, 0.890, 0.878, 0.905
+
+Análisis Preliminar de los datos
+```{r}
+summary(pesos) # Observamos que la media coincide con la mediana. Pudieramos pensar que la distribución de los datos se simétrica.
+```
+
+```{r}
+boxplot(pesos) # Tenemos la presencia de 3 valores atípicos.
+```
+
+
+Verificación de requisitos: 
+  1. Los dulces fueron seleccionados aleatoriamente.
+  2. Se conoce la desviación estandar poblacional $\sigma = 0.0565$
+  3. Hay menos de 30 datos por lo que se requiere pruebas de normalidad.
+
+```{r}
+hist(pesos, probability = T, col = "skyblue", ylim = c(0,12))
+lines(density(pesos), col = "darkblue", lwd = 3)
+curve(dnorm(x, mean = mean(pesos), sd = sd(pesos)), col = "red", lwd = 3, add = T)
+```
+
+```{r}
+# Gráfico QQ-Norm
+qqPlot(pesos, pch = 20, col = "red", main = "QQ-NORM", cex = 2)
+```
+
+```{r}
+shapiro.test(pesos) # Como p-value = 0.6993 No se rechaza la hipótesis nula. Por lo tanto, los datos siguen una distribución significativamente normal. 
+```
+
+Planteamos el juego de hipótesis
+
+$$
+H_0: \mu\leq0.8535 \\
+H_1:\mu>0.8535
+$$
+Para la prueba de hipótesis, utilizaremos la función z.test cuyos argumentos son:
+  x: vector númerico con los datos
+  alternative: indica el tipo de prueba “two.sided” prueba de dos colas, “less” prueba de cola izquierda y “greater” prueba de cola derecha.
+  mu: valor de referencia de la prueba.
+  sigma.x: sigma conocida del primer conjunto de datos.
+  conf.level: nivel de confianza para el intervalo.
+
+```{r}
+z.test(x = pesos, 
+       alternative = "greater", 
+       mu = 0.8535, 
+       sigma.x = 0.0565, 
+       conf.level = 0.95)
+```
+Decisión: Como p_value = 0.1626 > 0.05 no se rechaza la hipótesis nula.
+Conclusión: Con un nivel de confianza del 95% no existe suficiente evidencia estadística para sustentar la aseveración de que el peso medio de los dulces m&m es mayor a 0.8535, por lo que los consumidores si reciben la cantidad de producto que señala la etiqueta.
+
+
+## Adivina Tiempos
+
+Los estudiantes del curso de Software Actuarial III seleccionados al azar, participaron en un experimento que ponía a prueba su habilidad para determinar el transcurso de 1 minuto. En la base de datos “Adivina_Tiempo” se muestran los resultados de cincuenta estudiantes. A través de pruebas pilotos que realizaron el mismo experimento se ha concluido que 𝜎 = 9.5 segundos. Utilice un nivel de significancia de 0.05 para probar la aseveración de que la media poblacional es igual a 60 segundos. 
+
+Cargamos la base de datos:
+```{r}
+Adivina_Tiempo <- read_excel("C:/Users/ACER/Desktop/BUAP PRIMAVERA 2024/Análisis de Datos/R MARKDOWN/Prueba de Hipótesis para Medias/Adivina_Tiempo.xlsx")
+head(Adivina_Tiempo)
+```
+
+Análsisi Preliminar
+```{r}
+summary(Adivina_Tiempo$Tiempo) # La mediana es ligeramente mayor que la media por lo que pudieramos sospechar que la distribución de los datos es asimétrica a la izquierda.
+hist(Adivina_Tiempo$Tiempo, breaks = 5) # Graficamente la distribución de los datos si se ve sesgada a la derecha.
+boxplot(Adivina_Tiempo$Tiempo) # No hay presencial de valores atípicos.
+```
+
+Verificación de requisitos
+
+  1. Los estudiantes fueron seleccionado aleatoriamente.
+  2. Se conoce el valor de la desviación estandar poblacional $\sigma = 9.5$
+  3. Se tienen más de 30 datos.
+
+```{r}
+hist(Adivina_Tiempo$Tiempo, probability = T, col = "skyblue", breaks = 5, ylim = c(0,0.045))
+lines(density(Adivina_Tiempo$Tiempo), col = "darkblue", lwd = 3)
+curve(dnorm(x, mean = mean(Adivina_Tiempo$Tiempo), sd = sd(Adivina_Tiempo$Tiempo)), col = "red", lwd = 3, add = T)
+```
+
+```{r}
+qqPlot(Adivina_Tiempo$Tiempo, pch = 20, col = "red") #Hay pocos puntos que se salen de las bandas de confianza.
+```
+
+Normalidad con Test Kolmogorov ya que tenemos 50 datos
+```{r}
+lillie.test(Adivina_Tiempo$Tiempo)
+#Como p-value = 0.419 > 0.05 no se rechaza la hipótesis nula. Por lo tanto, los datos siguen una distribución aproximadamente normal.
+
+shapiro.test(tiempos)
+#Como p-value = 0.1319 > 0.05 no se rechaza la hipótesis nula. Por lo tanto, los datos siguen una distribución aproximadamente normal.
+```
+
+Planteamos el siguiente juego de hipótesis
+$$
+H_0:\mu=60\\
+H_0: \mu\neq60
+$$
+
+```{r}
+z.test(x = Adivina_Tiempo$Tiempo, 
+       alternative = "two.sided", 
+       mu = 60, 
+       sigma.x = 9.5, 
+       conf.level = 0.95)
+```
+
+Decisión: Como p = 0.1304 > 0.05 no se rechaza la hipótesis nula.
+Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que el tiempo promedio de adivinar el tiempo de 1 minuto es de 60 segundos.
+
+
+#Problema Agencia de AUTOS
+
+Una aseguradora cuenta con una base de datos que contiene información sobre 1338 asegurados. La gerencia de la aseguradora está interesada en determinar el índice de masa corporal (IMC) medio de sus asegurados para evaluar su relevancia en relación con las primas de seguro.
+
+Para lograr este objetivo, se decide realizar un estudio muestral. Se requiere determinar el tamaño de la muestra necesario para estimar el IMC medio de los asegurados con un nivel de confianza del 95% y un margen de error de 0.5 unidades de IMC.
+
+Una vez determinado el tamaño de la muestra, se selecciona aleatoriamente una muestra de asegurados de la base de datos y se obtienen los datos del IMC. Con los datos de esta muestra, se construye un juego de hipótesis para determinar si el IMC medio de los asegurados se encuentra en el rango de obsesidad para analizar la relevancia que tiene este índice para la aseguradora en términos de tarifas de seguro y riesgo de salud.
+
+```{r}
+Policyholder <- read_excel("C:/Users/ACER/Desktop/BUAP PRIMAVERA 2024/Análisis de Datos/R MARKDOWN/Prueba de Hipótesis para Medias/Policyholder.xlsm")
+head(Policyholder)
+```
+
+Análisis Preliminar
+```{r}
+summary(Policyholder) # Podemos observar que el IMC medio es de 30.66 lo que es mayor que el rango de obesidad.
+hist(Policyholder$bmi) # La distribución del IMC parece asimétrica a la derecha.
+boxplot(Policyholder$bmi) # Hay presencia de valores atípicos.
+```
+
+
+Tamaño de Muestra con sigma y N conocidos (sin reemplazo)
+```{r}
+n_muestra <- function(sigma, alfa, Error, N){
+  z <- qnorm(1 - alfa/2)
+  muestra <- ceiling(((z*sigma)^2*N)/((z*sigma)^2+(N-1)*Error^2))
+  print(muestra)
+}
+n <- n_muestra(sd(Policyholder$bmi), 0.05, 0.5, length(Policyholder$bmi))
+```
+
+Base de datos que forman parte de la muestra
+```{r}
+set.seed(666)  # Para reproducibilidad
+# Barajear el dataframe
+Policyholder_Barajeado <- Policyholder %>% slice_sample(prop = 1)
+# Seleccionar una muestra aleatoria de 20 filas después del shuffle
+Policyholder_Muestra <- Policyholder_Barajeado %>% slice_sample(n = 401)
+head(Policyholder_Muestra)
+```
+
+Requisito 1: Se cumple ya que se obtuvo una muestra a través de un muestreo aleatorio.
+
+Requisito 2: Se cumple ya que es posible conocer la desviación estándar poblacional
+
+Requisito 3: Se cumple ya que tenemos más de 30 datos. Aún así, verifiquemos la normalidad de los datos
+
+Normalidad con histograma y linea de densidad
+```{r}
+hist(Policyholder_Muestra$bmi, probability = T, col = "skyblue", ylim = c(0,0.07))
+lines(density(Policyholder_Muestra$bmi), col = "darkblue", lwd = 3)
+curve(dnorm(x, mean = mean(Policyholder_Muestra$bmi), sd = sd(Policyholder_Muestra$bmi)), col = "red", lwd = 3, add = T)
+```
+
+Normalidad con Q-Q-Norm
+```{r}
+qqPlot(Policyholder_Muestra$bmi, pch = 20, col = "red") #Hay algunos puntos que se salen de las bandas de confianza.
+```
+
+Normalidad con Test Kolmogorov-Smirnov ya que tenemos más de 50 datos.
+```{r}
+lillie.test(Policyholder_Muestra$bmi)
+#Decisión: Como p-value = 0.2038 > 0.05 no se rechaza la hipótesis nula.
+#Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que los datos siguen una distribución normal.
+```
+
+Planteamos el siguiente juego de hipótesis
+
+$$
+H_0:\mu\leq29.9 \\
+H_0: \mu>29.9
+$$
+
+```{r}
+z.test(Policyholder_Muestra$bmi, 
+       alternative = "greater", 
+       mu = 29.9, 
+       sigma.x = sd(Policyholder$bmi), 
+       conf.level = 0.95)
+```
+Decisión: Como p-value = 0.00005671 < 0.05 se rechaza la hipótesis nula.
+Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que el IMC promedio de los asegurados se encuentra en el rango de sobrepeso.
+
+
+#Prueba de Hipótesis para una media con sigma desconocida.
+
+**Problema Cereales**
+
+Se realizó un estudio acerca del contenido de azúcar en gramos (por gramo de cereal) que tienen algunos cereales. Se seleccionaron al azar diferentes cereales con los resultados mostrados en la base de datos.
+
+Utilice un nivel de significancia de 0.05 para probar la aseveración de un gerente de que la media de todos los cereales es igual que 0.3 g.
+
+```{r}
+Cereales <- read_excel("C:/Users/ACER/Desktop/BUAP PRIMAVERA 2024/Análisis de Datos/R MARKDOWN/Prueba de Hipótesis para Medias/Cereales.xlsx")
+head(Cereales)
+```
+
+Análisis Preliminar
+```{r}
+summary(Cereales$`Azúcar gr`) # Observamos que la mediana es menor que la media por lo que pudieramos pensar que la distribución de los datos es asimétrica a la derecha.
+hist(Cereales$`Azúcar gr`, breaks = 5) # Se verifica que si está sesgada a la derecha.
+boxplot(Cereales$`Azúcar gr`) # No hay presencia de valores atípicos.
+```
+
+Requisito 1: Se cumple ya que se obtuvo una muestra a través de un MAS
+
+Requisito 2: Se cumple ya que no se conoce la desviación estándar poblacional
+
+Requisito 3: Como tenemos menos de 30 datos se necesita verificar la normalidad de los datos
+
+
+Normalidad con histograma y linea de densidad
+```{r}
+hist(Cereales$`Azúcar gr`, probability = TRUE, col = "grey", ylim = c(0,1.65)) 
+lines(density(Cereales$`Azúcar gr`), col = "blue", lwd = 3)
+curve(dnorm(x, mean = mean(Cereales$`Azúcar gr`), sd = sd(Cereales$`Azúcar gr`)), col = "red", lwd = 3, add = T)
+```
+
+Normalidad con Q-Q-Norm
+```{r}
+qqPlot(Cereales$`Azúcar gr`, pch = 20, col = "red") #No hay puntos que se salgan de las bandas de confianza.
+```
+
+Normalidad con Test Shapiro Wilk ya que tenemos menos de 30 datos.
+```{r}
+shapiro.test(Cereales$`Azúcar gr`)
+#Decisión: Como p = 0.3686 > 0.05 no se rechaza la hipótesis nula.
+#Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que los datos siguen una distribución normal.
+```
+
+Planteamos el siguiente juego de hipótesis:
+
+$$
+H_0:\mu=0.3 \\
+H_1: \mu\neq0.3
+$$
+
+```{r}
+t.test(Cereales$`Azúcar gr`, 
+       alternative = "two.sided", 
+       mu = 0.3, 
+       conf.level = 0.95)
+```
+
+Decisión: Como p = 0.269 > 0.05 no se rechaza la hipótesis nula.
+Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que el azúcar promedio por gramo de cereal es de 0.3 gr en todos los cereales.
+
+#Problema Cine
+
+Un crítico de cine tomó una muestra aleatoria de películas infantiles con el propósito de medir el tiempo en el cual se presentan escenas del consumo de alcohol por parte de los personajes. Utilice los datos de la base “Películas Infantiles” y ponga a prueba la aseveración de un crítico de cine de que “en las películas infantiles que muestran el consumo de alcohol, el tiempo de exposición promedio es de al menos 50 segundos” con un nivel de significancia del 0.01.
+
+```{r}
+Pelis <- read_excel("C:/Users/ACER/Desktop/BUAP PRIMAVERA 2024/Análisis de Datos/R MARKDOWN/Prueba de Hipótesis para Medias/Películas Infantiles.xlsx")
+head(Pelis)
+```
+
+Análisis Preliminar
+```{r}
+summary(Pelis$`Consumo de alcohol`) # La mediana es menor que la media por lo que tendremos una asimetría a la derecha.
+hist(Pelis$`Consumo de alcohol`) # Se demuestra graficamente la asimetría a la derecha.
+boxplot(Pelis$`Consumo de alcohol`) # Tenemos un valor atípico.
+```
+
+Requisito 1: Se cumple ya que se obtuvo una muestra a través de un MAS
+
+Requisito 2: Se cumple ya que no se conoce la desviación estándar poblacional
+
+Requisito 3: Tenemos más de 30 observaciones. Aún así, verifiquemos la normalidad de los datos
+
+
+Normalidad con histograma y linea de densidad
+```{r}
+hist(Pelis$`Consumo de alcohol`, probability = TRUE, col = "grey")
+lines(density(Pelis$`Consumo de alcohol`), col = "blue", lwd = 3)
+curve(dnorm(x, mean = mean(Pelis$`Consumo de alcohol`), sd = sd(Pelis$`Consumo de alcohol`)), col = "red", lwd = 3, add = T)
+```
+
+Normalidad con Q-Q-Norm
+```{r}
+qqPlot(Pelis$`Consumo de alcohol`, pch = 20, col = "red") #Claramente hay un valor atípico que es el número 26. 
+```
+
+Normalidad con Test Shapiro Wilk ya que tenemos menos de 50 datos.
+```{r}
+shapiro.test(Pelis$`Consumo de alcohol`)
+#Decisión: Como p = 0.00 < 0.01 se rechaza la hipótesis nula.
+#Conclusión: No existe suficiente evidencia estadística para sustentar la aseveración de que los datos siguen una distribución normal.
+```
+
+Limpieza de datos: Sabemos por el Q-Q-Norm que el valor atípico es la observación 26. 
+```{r}
+Pelis <- Pelis[-26,] #Eliminamos la fila que contiene a ese dato
+hist(Pelis$`Consumo de alcohol`)
+shapiro.test(Pelis$`Consumo de alcohol`) #Se sigue rechazando la hipótesis nula
+ad.test(Pelis$`Consumo de alcohol`) #Con la prueba de Anderson Darling se acepta la hipótesis nula.
+jarque.bera.test(Pelis$`Consumo de alcohol`) # Con esta prueba se acepta la hipótesis nula.
+```
+
+Planteamos el siguiente juego de hipótesis
+
+$$
+H_0:\mu\geq50\\
+H_0: \mu<50
+$$
+```{r}
+t.test(Pelis$`Consumo de alcohol`, 
+       alternative = "less", 
+       mu = 50, 
+       conf.level = 0.99)
+#Decisión: Como p = 0.1929 > 0.01 no se rechaza la hipótesis nula.
+#Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que el consumo de alcohol promedio en las películas infantiles es de al menos 50 segundos.
+```
+
+
+#Problema Jubilación 
+
+Eres un actuario en una empresa de gestión de fondos de pensiones y deseas realizar una prueba de hipótesis para determinar si la edad promedio de jubilación de los clientes en tu fondo de pensiones es diferente de la edad estándar de jubilación en tu país, que es de 65 años.
+
+Tienes una muestra aleatoria de 50 clientes del fondo de pensiones y sus edades de jubilación: 61, 63, 64, 65, 66, 62, 63, 64, 67, 68, 63, 64, 66, 66, 67, 65, 64, 63, 64, 65, 66, 66, 64, 63, 65, 66, 67, 65, 64, 63, 66, 68, 69, 65, 64, 63, 67, 68, 64, 63, 64, 65, 66, 62, 63, 64, 65, 66, 67,62
+
+Establece un nivel de significancia de 0.05 para la prueba.
+
+```{r}
+pensionados <- c(61, 63, 64, 65, 66, 62, 63, 64, 67, 68, 63, 64, 66, 66, 67, 65, 64, 63, 64, 65, 66, 66, 64, 63, 65, 66, 67, 65, 64, 63, 66, 68, 69, 65, 64, 63, 67, 68, 64, 63, 64, 65, 66, 62, 63, 64, 65, 66, 67,62)
+```
+
+Requisito 1: Se cumple ya que se obtuvo una muestra a través de un MAS
+
+Requisito 2: Se cumple ya que no se conoce la desviación estándar poblacional
+
+Requisito 3: Verifiquemos la normalidad de los datos
+
+
+Normalidad con histograma y linea de densidad
+```{r}
+hist(pensionados, probability = TRUE, col = "grey") 
+lines(density(pensionados), col = "blue", lwd = 3)
+curve(dnorm(x, mean(pensionados), sd = sd(pensionados)), col = "red", lwd = 3, add = T)
+```
+
+Normalidad con Q-Q-Norm
+```{r}
+qqPlot(pensionados, pch = 20, col = "red")
+```
+
+Normalidad con Test Shapiro Wilk ya que tenemos 50 datos. 
+```{r}
+shapiro.test(pensionados)
+#Decisión: Como p = 0.1446 > 0.05 no se rechaza la hipótesis nula.
+#Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que los datos siguen una distribución normal.
+```
+
+Planteamos el siguiente juego de hipótesis
+$$
+H_0:\mu=65\\
+H_0: \mu\neq65\
+$$
+
+```{r}
+t.test(pensionados, 
+       alternative = "two.sided", 
+       mu = 65, 
+       conf.level = 0.95)
+```
+
+Decisión: Como p = 0.4376 > 0.05 no se rechaza la hipótesis nula.
+Conclusión: No existe suficiente evidencia estadística para sustentar la aseveración de que la edad promedio de jubilación de los clientes difiere de la edad de 65 años. 

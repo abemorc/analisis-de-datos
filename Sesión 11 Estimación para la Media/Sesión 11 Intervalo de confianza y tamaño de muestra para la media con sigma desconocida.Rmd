@@ -1,0 +1,114 @@
+---
+title: 'Sesión 11: Estimación para la media poblacional sigma desconocida'
+author: "David Nexticapan Cortes"
+date: "2024-07-27"
+output: word_document
+---
+
+# Distribución t de Student 
+
+Generamos valores aleatorios que siguen una distribución normal estándar y valores aleatorios que siguen una distribución t-Student con diferentes grados de libertad para comparar las curvas de densidad:
+```{r}
+# Definir el rango de valores x
+x_values <- seq(-4, 4, length.out = 1000)
+y_values <- dnorm(x_values)
+
+# Graficar la densidad de la normal estándar
+plot(x = x_vals, y = y_values, type = "l", col = "black", lwd = 2, ylim = c(0, 0.4), xlab = "Valor", ylab = "Densidad", main = "Comparación de la Normal y la t de Student")
+
+# Agregar la densidad de la t-Student con 5 grados de libertad
+lines(x_vals, dt(x_vals, df = 5), col = "red", lwd = 2, lty = 2)
+
+# Agregar la densidad de la t-Student con 15 grados de libertad
+lines(x_vals, dt(x_vals, df = 15), col = "blue", lwd = 2, lty = 3)
+
+# Agregar una leyenda
+legend("topright", legend = c("Normal(0,1)", "t-Student df=5", "t-Student df=15"), col = c("black", "red", "blue"), lwd = 2, lty = c(1,2,3))
+```
+
+# Valor Crítico
+
+La función qt() nos permite encontrar los valores críticos de la distribución t-Student, sus argumentos son:
+
+  p: Probabilidad acumulada a la que se desea encontrar el cuantil.
+  df: Grados de libertad de la distribución.
+  lower.tail: Si lower.tail es TRUE (por defecto), se calcula el cuantil para la cola inferior. Si es FALSE, se calcula el cuantil para la cola superior.
+  
+```{r}
+#Para n = 23 y un nivel de confianza del 95% tenemos:
+v_critico <- round(qt(p = 0.975, df = 22, lower.tail = TRUE),3)
+v_critico
+```
+
+## Intervalo de confianza
+Creamos una función para calcular el intervalo de confianza para estimar a la media poblacional cuando no se conoce la desviación estándar poblacional:
+```{r}
+conf_interval_media_sigmades <- function(media_muestral, s, n, nivel_confianza){
+  alfa <- 1 - nivel_confianza
+  v_critico <- qt(1 - alfa / 2, df = n - 1, lower.tail = TRUE)
+  error <- v_critico * s / sqrt(n)
+  l_inferior <- round(media_muestral - error,3)
+  l_superior <- round(media_muestral + error,3)
+  cat("Tenemos una confianza del", nivel_confianza * 100, "% de que el intervalo (", l_inferior, ",", l_superior, ") realmente contiene el verdadero valor de la media poblacional")
+}
+```
+
+Problema 1: Discriminación por edad.
+
+En la siguiente base de datos se incluyen las edades de solicitantes que no lograron un ascenso en su actual trabajo. 
+
+34, 37, 37, 38, 41, 42, 43, 44, 44, 45, 45, 45, 46, 48, 49, 53, 53, 54, 54, 55, 56, 57, 60
+
+Existe el tema más importante de si ciertos solicitantes fueron víctimas de discriminación por edad, pero por ahora nos enfocaremos en el simple aspecto de utilizar esos valores como una muestra con el propósito de estimar la media de una población más grande. 
+
+Suponga que la muestra se obtuvo a través de un muestreo aleatorio simple y utilice los datos muestrales con un nivel de confianza al 95% para calcular el intervalo de confianza.  
+
+```{r}
+# Creamos el vector con los datos
+edades <- c(34, 37, 37, 38, 41, 42, 43, 44, 44, 45, 45, 45, 46, 48, 49, 53, 53, 54, 54, 55, 56, 57, 60)
+# Calculamos el intervalo de confianza
+conf_interval_media_sigmades(mean(edades), sd(edades), length(edades), 0.95)
+```
+
+Problema 2: Una compañía de seguros de vida desea estimar la duración media de las pólizas de seguro de una categoría específica. Para ello, toma una muestra aleatoria de tamaño 100 para llevar a cabo este análisis. Considera la base de datos “Base Pólizas” para calcular un intervalo de confianza del 95% para la duración media de todas las pólizas en esa categoría.
+
+```{r}
+# Importamos la base de datos
+Base_Pólizas <- read_excel("Base Pólizas.xlsx")
+media <- mean(Base_Pólizas$Duración)
+s <- sd(Base_Pólizas$Duración)
+n <- length(Base_Pólizas$Duración)
+conf_interval_media_sigmades(media, s, n, 0.95)
+```
+
+Problema 3: Un asesor de estrategias de inversión gestiona una cartera de 500 inversionistas que invierten en bonos corporativos. Tiene por objetivo estimar el rendimiento promedio de esta cartera por lo que ha tomado una muestra aleatoria de 50 clientes y su respectiva tasa de rendimiento. Utiliza la base de datos “Tasas de Rendimiento” para calcular un intervalo de confianza del 90% para el rendimiento promedio de todos los bonos en la cartera.
+
+```{r}
+#Importamos la base de datos
+library(readxl)
+Tasas_de_Rendimiento <- read_excel("Tasas de Rendimiento.xlsx")
+
+# Seleccionamos una muestra aleatoria simple de inversionistas
+library(dplyr)
+set.seed(123)
+muestra_inversionistas <- sample_n(Tasas_de_Rendimiento, size = 50, replace = F)
+
+# Establecemos parámetros
+N_inversionistas <- 500
+n_inversionistas <- 50
+media_muestral <- mean(muestra_inversionistas$`Tasa de Rendimiento`)
+sigma_poblacional <- sd(Tasas_de_Rendimiento$`Tasa de Rendimiento`)
+
+# Aplicamos la siguiente función
+intervalo_medias_sigma_N <- function(media_muestral, sigma, n, N, alfa){
+  v_critico <- qnorm(p = 1 - alfa / 2, lower.tail = T)
+  error <- v_critico * (sigma / sqrt(n)) * sqrt((N - n) / (N - 1))
+  l_inferior <- round(media_muestral - error,3)
+  l_superior <- round(media_muestral + error,3)
+  cat("El intervalo de confianza para estimar a la media poblacional es: (", l_inferior, ",", l_superior,")")
+}
+
+# Ingreamos los parámetros
+intervalo_medias_sigma_N(media_muestral = media_muestral, sigma = sigma_poblacional, n = n_inversionistas, N = N_inversionistas, alfa = 0.05)
+```
+

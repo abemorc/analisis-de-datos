@@ -1,0 +1,147 @@
+---
+title: 'Sesión 17: Missing Values'
+author: "David Nexticapan Cortes"
+date: "2025-02-14"
+output: html_document
+---
+
+Cargamos las librerías a utilizar
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(tidyr) # Para tener acceso drop_na
+```
+
+Importamos la base de datos a trabajar
+```{r}
+diabetes <- read_excel("diabetes.xlsx")
+head(diabetes)
+View(diabetes) # Es facil ver que tenemos la presencia de valores NA (Missing Values)
+```
+
+La base de datos se cconforma de las siguientes variables:
+
+  id → Identificación
+  chol → Colesterol
+  stab.glu → Glucosa en ayunas
+  hdl → Colesterol HDL
+  ratio → Relación colesterol total/HDL
+  glyhb → Hemoglobina glicosilada
+  location → Ubicación
+  age → Edad
+  gender → Género
+  height → Estatura
+  weight → Peso
+  frame → Complexión
+  bp.1s → Presión arterial sistólica (1ra medición)
+  bp.1d → Presión arterial diastólica (1ra medición)
+  bp.2s → Presión arterial sistólica (2da medición)
+  bp.2d → Presión arterial diastólica (2da medición)
+  waist → Cintura
+  hip → Cadera
+  time.ppn → Tiempo postprandial (después de comer) en minutos
+
+# Continuación librería dplyr
+
+6. summarise: Genera un resumen de estadísticas descriptivas.
+```{r}
+resumen_estadistico_age <- summarise(diabetes,
+                                     Total = n(),
+                                     Media = mean(age, na.rm = T),
+                                     Varianza = var(age, na.rm = T),
+                                     Desviación = sd(age, na.rm = T)
+                                     )
+resumen_estadistico_age
+
+# Podemos contar la cantidad de valores NA que hay en la base de datos.
+total_NA_chol <- summarise(diabetes, Total_NA = sum(is.na(chol)))
+total_NA_chol # Informa que tenemos un valor NA en la variable chol.
+
+# ¿En qué obvservaciones tenemos este valor NA?
+indice_NA_chol <- which(is.na(diabetes$chol)) # Esta función no pertenece a la librería dplyr
+indice_NA_chol # Nos da el valor del índice de donde se encuentra el valor NA
+info_NA_chol <- filter(diabetes, is.na(chol)) # Esta función pertenece a la librería dplyr
+info_NA_chol # Nos da todo el renglón donde se presente el valor NA. La clase del objeto es un data.frame
+
+# Probamos con la variable bp.1s
+resumen_bp.1s <- summarise(diabetes,
+                           Total = n(),
+                           Media = mean(bp.1s, na.rm = T),
+                           Q1 = quantile(bp.1s, prob = 0.25, na.rm = T),
+                           Mediana_Q2 = median(bp.1s, na.rm = T),
+                           Q3 = quantile(bp.1s, prob = 0.75, na.rm = T),
+                           Total_NA = sum(is.na(bp.1s))
+                           )
+resumen_bp.1s
+
+indice_NA_bp.1s <- which(is.na(diabetes$bp.1s))
+indice_NA_bp.1s
+info_NA_bp.1s <- filter(diabetes, is.na(bp.1s))
+info_NA_bp.1s
+```
+
+7. group_by: Agrupa el data.frame por una o más variables categóricas. Es util cuando queremos realizar estadísticas descriptivas por grupos.
+```{r}
+# Obtenemos estadísticas descriptivas por genero de la variable stab.glu
+resumen_por_gender <- diabetes %>% 
+  group_by(gender) %>% 
+  summarise(Total = n(),
+            Media = mean(chol, na.rm = T),
+            Q1 = quantile(chol, 0.25, na.rm = T),
+            Q2 = quantile(chol, 0.50, na.rm = T),
+            Q3 = quantile(chol, 0.75, na.rm = T),
+            Var = var(chol, na.rm = T),
+            SD = sd(chol, na.rm = T),
+            Total_NA = sum(is.na(chol))
+            )
+resumen_por_gender
+```
+
+## Missing values
+
+Los valores faltantes o "missing values" son comunes en muchos conjuntos de datos y pueden influir negativamente en los análisis. En R, estos valores se representan como NA (Not Available).
+
+Podemos identificar los id de las personas que tienen al menos un valor NA en cualquiera de sus variables o en una variable específica.
+
+```{r}
+# Filtramos las filas con al menos un NA en cualquier columna
+filtrado_NA <- filter(diabetes, if_any(everything(), is.na))
+print(filtrado_NA) # Observamos que hay 273 observaciones con al menos un NA en alguna de sus variables.
+# if_any: Verifica si al menos una de las columnas que selecciones cumple con una condición específica. Si es así, devuelve TRUE para esa fila, lo que significa que esa columna se incluirá en el resultado.
+# everything(): Selecciona todas las columnas del data.frame
+```
+
+Podemos eliminar "remover" las filas que contienen valores NA. La función drop_na() de dplyr nos permite realizar esta acción.
+
+```{r}
+diabetes1 <- diabetes %>% 
+  drop_na() %>% 
+  print()
+# Se han eliminado 273 datos y nos restan 130.
+
+# Si requiero eliminar valores NA de columnas específica
+diabetes1 <- diabetes %>% 
+  drop_na(bp.1s, bp.1d, bp.2s, bp.2d) %>% 
+  print() # Se han eliminado 262 renglones y restan 141.
+```
+
+Podemo realizar la acción de imputar lo que significa reemplazar los valores faltantes (NA) con un valor estimado o razonable basado en los datos disponibles. La imputación se usa para evitar la pérdida de información al eliminar filas completas con valores faltantes.
+
+```{r}
+media_bp.1s <- mean(diabetes$bp.1s, na.rm = T)
+diabetes$bp.1s[is.na(diabetes$bp.1s)] <- media_bp.1s
+View(diabetes)
+
+# Usar la mediana en lugar de la media si hay valores atípicos
+mediana_bp.1d <- median(diabetes$bp.1d, na.rm = T)
+diabetes$bp.1d[is.na(diabetes$bp.1d)] <- mediana_bp.1d
+
+# Reemplazar por la moda (valor más frecuente) en datos categóricos.
+moda_location <- names(table(diabetes$location))[2]
+diabetes$location[is.na(diabetes$location)] <- moda_location
+
+#library(zoo)
+#diabetes$glucose <- na.locf(diabetes$glucose)  # Usa el último valor conocido
+#diabetes$glucose <- na.locf(diabetes$glucose, fromLast = TRUE)  # Usa el siguiente valor conocido
+```
+

@@ -1,0 +1,104 @@
+---
+title: 'Sesión 25: Continuación Prueba de Hipótesis Para Medias'
+author: "David Nexticapan Cortes"
+date: "2025-04-03"
+output: html_document
+---
+
+# Problema 1: Adivida Tiempos
+
+Los estudiantes del curso de Software Actuarial III seleccionados al azar, participaron en un experimento que ponía a prueba su habilidad para determinar el transcurso de 1 minuto. 
+
+En la base de datos “Adivina_Tiempo” se muestran los resultados de cincuenta estudiantes. A través de pruebas pilotos que realizaron el mismo experimento se ha concluido que 𝜎 = 9.5 segundos. 
+
+Utilice un nivel de significancia de 0.05 para probar la aseveración de que la media poblacional es igual a 60 segundos. 
+
+Cargamos librerías a utilizar 
+
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(car)
+library(nortest)
+library(tseries)
+library(BSDA)
+```
+
+Cargar la base de datos
+```{r}
+library(readxl)
+Adivina_Tiempo <- read_excel("Adivina_Tiempo.xlsx")
+View(Adivina_Tiempo)
+```
+
+**Análisis Exploratorio**
+```{r}
+colSums(is.na(Adivina_Tiempo)) # No hay presencia de valores NA
+```
+
+```{r}
+summary(Adivina_Tiempo$Tiempo)
+```
+
+  - Observamos que la mediana es mayor que la media, lo que sugiere que los distribuicioón de los datos esta ligeramente sesgada a la izquierda. 
+  
+  - El 25% de los estudiantes asignó un tiempo mayor o igual a 64.95 segundos.
+  
+  - El tiempo medio estimado por los estudiantes tiene una media de 57.97 segundos  que es un valor menor al aseverado de 60 segundos.
+  
+```{r}
+hist(Adivina_Tiempo$Tiempo, breaks = 5)
+```
+
+  - El histograma de frecuencias ilustra el sesgo que tiene la distribución a la izquierda.
+  
+```{r}
+boxplot(Adivina_Tiempo$Tiempo)
+```
+
+  - No tenemos la prsencia de valores atípicos, lo que indica que las dispersión de los datos es uniforme dentro de los límites esperados.
+  
+**Verificación de Requisitos**
+
+  1. Los estudiantes de la muestra fueron seleccionados a través de MAS
+  
+  2. Se conoce el valor de la desviación estándar poblacional = 9.5 segundos.
+  
+  3. Tenemos más de 30 datos. Sin embargo, realizamos pruebas de normalidad.
+
+```{r}
+hist(Adivina_Tiempo$Tiempo, probability = T, col = "skyblue", breaks = nclass.FD(Adivina_Tiempo$Tiempo), ylim = c(0, 0.050))
+lines(density(Adivina_Tiempo$Tiempo), col = "darkblue", lwd = 3)
+curve(dnorm(x, mean = mean(Adivina_Tiempo$Tiempo), sd = sd(Adivina_Tiempo$Tiempo)), col = "red", lwd = 3, add = T)
+```
+
+  - La comparación entre la distribución teórica (rojo) y la empírica (azul) sugiere que los datos no siguen completamente una distribución normal. Se observa también ciertas discrepancias en la forma de las curvas, especialmente  en la parte central y en las colas. Estas diferencias indican que la variable de los tiempos no puede ajustarse bien a una distribución normal.
+
+```{r}
+qqPlot(Adivina_Tiempo$Tiempo, pch = 20, col = "red")
+Adivina_Tiempo$Tiempo[6]
+Adivina_Tiempo$Tiempo[33]
+```
+
+  - El gráfico QQ-Norm muestra que la mayoría de los puntos siguen aproximadamente a la linea recta de referencia, lo que sugiere que los datos tienen una distribución cercana a la normla. Sin embargo, se observan algunas desviaciones en los extremos, donde los puntos se alejan de la linea recta, indicando posibles colas pesadas o una asimetría ligera. 
+  
+```{r}
+lillie.test(Adivina_Tiempo$Tiempo)
+```
+
+  - Decisión: Como p_value = 0.419 > 0.05 no se rechaza la hipótesis nula.
+  
+  - Conclusión: Existe suficiciente evidencia estadística para sustentar la aseveración de que los tiempos siguen una distribución significativamente normal.
+  
+```{r}
+shapiro.test(Adivina_Tiempo$Tiempo)
+```
+ 
+  - Decisión: Como p_value = 0.1319 > 0.05 no se rechaza la hipótesis nula.
+  
+  - Conclusión: Existe suficiciente evidencia estadística para sustentar la aseveración de que los tiempos siguen una distribución significativamente normal.
+  
+Tarea: Terminar el ejercicio
+  - Plantear el juego de hipótesis
+  - Realizar el contraste de hipótesis (z.test)

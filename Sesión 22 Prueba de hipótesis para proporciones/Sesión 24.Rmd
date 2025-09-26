@@ -1,0 +1,82 @@
+---
+title: 'Sesión 24: Prueba de Hipótesis para Medias'
+author: "David Nexticapan Cortes"
+date: "2024-10-10"
+output: html_document
+---
+
+#**Prueba de hipótesis para medias**
+
+Los requisitos que se deben de cumplir para realizar un contraste de hipótesis para medias son los siguientes:
+
+  1. La muestra sea aleatoria simple
+  2. Se conoce el valor de la desviación estandar $\sigma$
+  3. Se satisface cualquiera de los siguientes requisitos:
+    3.1. Los datos de la muestra siguen una distribución aproximadamente normal.
+    3.2. El tamaño de muestra es mayor a 30.
+  
+## Problema de los M&M
+
+Se presentan los pesos de 13 dulces M&M elegidos al azar de una bolsa que contiene 465 dulces cuyo contenido neto marcado en la etiqueta es de 396.9 gramos.
+
+La desviación estandar de todos los dulces M&M que están en la bolsa es de 0.0565 gramos.
+
+Utilice los datos muestrales con un nivel de significancia del 0.05 para probar la aseveración del gerente que dice "La producción de los dulces M&M em realidad tiene una media mayor que 0.8535 gramos por lo que los consumidores están recibiendo una cantidad mayor de la indicada en la etiqueta"
+
+Pesos: 0.751, 0.841, 0.966, 0.859, 0.857, 0.942, 0.873, 0.809, 0.890, 0.878, 0.905, 0.857, 0.810
+
+Verificamos requisitos:
+
+  1. Los dulces fueron seleccionados aleatoriamente
+  2. Sí se conoce la desviación estandar poblacional 0.0565
+  3. Tendremos que verificar la normalidad de los datos, dado que n < 30.
+
+Método Gráfico (Histrograma con la linea de ajuste)
+ 
+```{r}
+pesos <- c(0.751, 0.841, 0.966, 0.859, 0.857, 0.942, 0.873, 0.809, 0.890, 0.878, 0.905, 0.857, 0.810)
+hist(pesos, probability = TRUE, breaks = 10)
+lines(density(pesos), lwd = 2, col = "red")
+curve(dnorm(x, mean(pesos), sd(pesos)), add = T, lwd = 2)
+```
+
+QQ-Norm
+
+```{r}
+library(car)
+qqPlot(pesos)
+```
+
+
+Juego de hipótesis
+H_0: Los datos siguen una distribución significativamente normal
+H_1: Los datos no siguen una distribución significativamente normal
+
+```{r}
+shapiro.test(pesos) #Como p-value = 0.9598 > 0.05 no se rechaza la hipótesis nula. 
+```
+
+Planteamos el juego de hipotesis para le problema de los dulces
+
+$$
+H_0: \mu \leq 0.8535\\
+H_1: \mu > 0.8535
+$$
+
+```{r}
+library(BSDA)
+?z.test
+z.test(x = pesos,
+       alternative = "greater",
+       mu = 0.8535,
+       sigma.x = 0.0565,
+       conf.level = 0.95)
+#Decisión: Como p-value = 0.2421 > 0.05 no se rechaza la hipótesis nula.
+#Conclusión: No existe suficiente evidencia estadística para sustentar la aseveración del gerente de que se regala el producto (de que el peso promedio de los dulces es mayor a 0.8535)
+```
+
+
+## Adivina tiempos
+
+Los estudiantes del curso de Software Actuarial III seleccionados al azar, participaron en un experimento que ponía a prueba su habilidad para determinar el transcurso de 1 minuto. En la base de datos "Adivina_Tiempos" se muestran los resultados de 50 estudiantes. A través de pruebas piloto que realizaron el mismo experimento se ha concluido que $\sigma = 9.5$ segundos. Utilice un nivel de significancia de 0.05 para probar la aseveración de que la media poblacional de los tiempos de los estudiantes es igual a 60 segundos.
+

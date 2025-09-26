@@ -1,0 +1,325 @@
+---
+title: "Bosques Aleatorios"
+author: "David Nexticapan Cortes"
+date: "2025-04-20"
+output: html_document
+---
+
+Librerías a utilizar
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(rpart)
+library(rpart.plot)
+library(tidyr)
+library(caret) # Para la matriz de confusión.
+library(caTools)
+library(randomForest) # Librería específica para el modelo de Random Forest
+library(MLmetrics)  # Para F1_Score
+library(ggplot2)
+```
+
+Importamos el dataset
+```{r}
+df_pacientes <- read_excel("dataset_esquizofrenia.xlsx")
+head(df_pacientes)
+```
+
+  - "edad": la edad de la persona
+  
+  - "genero": femenino (0) o masculino (1)
+  
+  - "educacion": primaria (0), secundaria (1), media o preparatoria (2), universitario (3), posgrado (4)
+  
+  - "est_civil": solter@ (0), casad@ (1), divorciad@ (2), viud@ (3)
+  
+  - "ocupacion": desemplead@ (0), emplead@ (1), jubilad@ (2), estudiante (3)
+  
+  - "nivel_ing": ingresos bajos (0), ingresos medios (1), ingresos altos (2)
+  
+  - "vivienda": zona rural (0), zona urbana (1)
+  
+  - "historia_familiar": no ha tenido familiares con esquizofrenia (0), ha tenido familiares con esquizofrenia (1)
+  
+  - "uso_sustancias": no consume tabaco, alcohol u otras sustancias (0), sí consume (1)
+  
+  - "intento_suic": no (0), sí (1)
+  
+  - "riesgo_entorno_social": bajo (0), medio (1), alto (2)
+  
+  - "factores_estres": bajo (0), medio (1), alto (2)
+  
+  - "adherencia_medicacion": baja (0), moderada (1), buena (2)
+  
+  - "diagnostico": no tiene esquizofrenia (0), tiene esquizofrenia (1)
+
+**Análisis Exploratorio**
+
+Verificamos la clase de cada variable
+```{r}
+glimpse(df_pacientes)
+```
+
+Trabajamos las variables factor
+```{r}
+df_pacientes <- df_pacientes %>% mutate(across(-edad & where(is.double), as.factor))
+glimpse(df_pacientes)
+```
+
+Verificamos la presencia de missing values
+```{r}
+colSums(is.na(df_pacientes)) # No hay presencia de missing values.
+```
+
+**Entrenamiento del Modelo**
+
+#**Modelo 1**
+
+Dividir la base de datos en entrenamiento y prueba
+```{r}
+set.seed(42)
+
+# Barajar la base
+barajeado <- df_pacientes %>% slice_sample(prop = 1)
+
+# Partición 80% entrenamiento, 20% prueba
+n <- nrow(barajeado)
+entrenamiento_idx <- sample(1:n, size = 0.8 * n)
+
+pacientes_train <- barajeado[entrenamiento_idx, ]
+pacientes_test <- barajeado[-entrenamiento_idx, ]
+```
+
+```{r}
+# Omitimos hiperparámetros como ntree, mtry, importance.
+# Entrenamiento con el set de entrenamiento
+modelo1 <- randomForest(diagnostico ~ ., data = pacientes_train)
+# randomForest() por defecto entrena 500 árboles
+
+```
+
+**Out-Of-Bag accuracy**
+
+  - OOB: error de clasificación total de todos los casos OOB hasta ese número de árboles.
+  
+  - 0: error de clasificación sólo para los casos cuya clase real era 0.
+  
+  - 1: error de clasificación sólo para los casos cuya clase real era 1.
+
+```{r}
+# Error OOB (ya viene incluido en el modelo)
+modelo1$err.rate
+
+exactitud_oob <- 1 - modelo1$err.rate[which.min(modelo1$err.rate[,"OOB"])]
+cat("La exactitud OOB es:", round(exactitud_oob * 100, 1), "%\n")
+```
+
+  - Al principio hay pocos árboles y el modelo es inestable.
+  
+  - Conforme se agregan más árboles, el bosque mejora su capacidad de generalización.
+  
+  - El error OOB se estabiliza y deja de mejorar (a eso se le llama "punto de convergencia").
+  
+  - Una OOB accuracy del 78.8% quiere decir que el modelo predice correctamente el diagnóstico (esquizofrenia o no) en el 78.8% de los casos del conjunto de datos fuera de entrenamiento.
+
+Podemos observar la clasificación de un árbol en particular:
+```{r}
+arbol_30 <- getTree(modelo1, k = 30, labelVar = TRUE)
+print(arbol_30)
+```
+
+**Probabilidades de Clasificación OOB por Observación**
+```{r}
+head(modelo1$votes)
+tail(modelo1$votes)
+```
+
+  - Cada fila es una observación en tu set de entrenamiento (pacientes_train).
+  
+  - Cada columna representa una clase del problema (0 = no tiene esquizofrenia, 1 = tiene esquizofrenia).
+  
+  - Los valores son proporciones de votos de los árboles que NO vieron esa observación durante su entrenamiento, es decir, árboles "out-of-bag".
+
+
+**Realizamos las predicciones**
+```{r}
+# Predicciones OOB
+predicciones_oob <- modelo1$predicted
+```
+
+
+**Matriz de confusión**
+```{r}
+reales <- pacientes_train$diagnostico # Valores reales
+
+# Matriz de confusión
+conf_matrix <- confusionMatrix(data = predicciones_oob, reference = reales, positive = "1")
+print(conf_matrix$table)
+```
+
+  - Verdaderos negativos (TN = 1810): El modelo clasificó correctamente a 1810 personas como no esquizofrénicas, y efectivamente no tienen esquizofrenia.
+  
+  - Verdaderos positivos (TP = 1726): El modelo clasificó correctamente a 1726 personas como esquizofrénicas, y en realidad sí tienen esquizofrenia.
+  
+  - Falsos negativos (FN = 584): El modelo no detectó esquizofrenia en 584 personas, pero en realidad sí la tienen. Esto es delicado en un problema médico, pues son pacientes con esquizofrenia no detectados por el modelo.
+  
+  - Falsos positivos (FP = 368): El modelo clasificó incorrectamente a 368 personas como si tuvieran esquizofrenia, cuando en realidad no la tienen.
+  
+**Métricas**
+
+```{r}
+# Extraer métricas
+accuracy <- conf_matrix$overall["Accuracy"]
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+f1 <- conf_matrix$byClass["F1"]
+
+# Mostrar resultados
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión): ", round(precision, 4), "\n")
+cat("Recall (Sensibilidad): ", round(recall, 4), "\n")
+cat("Puntaje F1: ", round(f1, 4), "\n")
+```
+
+  - Accuracy (Exactitud) = 78.8%: El 78.8% de todas las predicciones del modelo fueron correctas, tanto para personas con esquizofrenia como sin ella.
+  
+  - Precision (Precisión) = 82.4%: De todas las personas que el modelo clasificó como esquizofrénicas, el 82.4% realmente lo eran. Esta métrica es importante para evitar falsos positivos, es decir, no generar diagnósticos erróneos en personas sanas.
+  
+  - Recall (Sensibilidad) = 74.7%: El modelo fue capaz de detectar correctamente el 74.7% de los verdaderos casos de esquizofrenia. Esta métrica es clave en el área médica, porque queremos identificar a la mayor cantidad de pacientes enfermos posible. Un 25.3% de los casos no fueron detectados (falsos negativos).
+  
+  - F1 Score = 78.4%: Este es un balance entre precisión y recall. Un F1 alto indica que el modelo tiene un buen compromiso entre detectar correctamente a quienes están enfermos y no clasificar erróneamente a quienes no lo están.
+
+
+**Efecto de los hiper-parámetros en el desempeño de un Bosque Aleatorio**
+
+Los hiper-parámetros que generalmente tienen mayor impacto son:
+
+  - ntree: Controla el número de árboles que se construyen.
+  
+  - mtry: Número de variables a considerar para cada división. Por defecto es √p (donde p = número de variables) para clasificación y p/3 para reegresión.
+  
+  - maxnodes: Máximo número de nodos terminales (hojas) que puede tener un árbol.
+
+
+**Número de Árboles*
+```{r}
+# Crear vector con diferentes números de árboles
+n_arboles <- seq(10, 300, by = 10)
+
+# Vector vacío para almacenar F1 Score
+f1_scores <- c()
+
+# Entrenar bosques y calcular F1 para cada uno
+for (n in n_arboles) {
+  cat("Entrenando con", n, "árboles...\n")
+  
+  bosque <- randomForest(diagnostico ~ ., data = pacientes_train, ntree = n, importance = T, keep.inbag = T, oob.prox = T) 
+  
+  # Obtener predicciones OOB
+  predicciones_oob <- predict(bosque, type = "response")
+  
+  # Calcular F1 (suponiendo clases 0 y 1, y que 1 es la positiva)
+  f1 <- F1_Score(y_true = pacientes_train$diagnostico, y_pred = predicciones_oob, positive = "1")
+  f1_scores <- c(f1_scores, f1)
+}
+
+# importance: Calcula qué tan importantes son las variables predictoras (features) dentro del modelo.
+# keep.inbag: Guarda un registro de qué datos se usaron en cada árbol del bosque (es decir, quién estuvo “en la bolsa”).
+# oob.prox: Calcula una matriz de proximidad entre observaciones, usando solo datos OOB (fuera de bolsa).
+```
+
+```{r}
+# Graficar F1 vs. número de árboles
+df_f1 <- data.frame(n_arboles, f1_scores)
+
+ggplot(df_f1, aes(x = n_arboles, y = f1_scores)) +
+  geom_line(color = "blue3", size = 1.2) +
+  geom_point(color = "red", size = 3) +
+  labs(x = "Número de árboles", y = "Puntaje F1", title = "Impacto del número de árboles en el F1-score") +
+  theme_minimal()
+```
+ 
+**Número de Nodos Teerminales**
+
+```{r}
+# Definir los valores de max_depth
+max_profundidad <- seq(2, 60, by = 2)
+f1_scores <- c()
+
+# Iterar sobre cada valor de max_depth
+for (max_depth in max_profundidad) {
+  cat("Entrenando con max_depth =", max_depth, "...\n")
+  
+  # Entrenar el modelo con el valor de max_depth
+  bosque <- randomForest(diagnostico ~ ., data = pacientes_train, ntree = 200, maxnodes = max_depth, importance = T, keep.inbag = T, oob.prox = T)
+  
+  # Obtener las predicciones fuera de bolsa
+  predicciones_oob <- predict(bosque, type = "response")
+  
+  # Calcular la matriz de confusión
+  conf_matrix <- confusionMatrix(predicciones_oob, pacientes_train$diagnostico, positive = "1")
+  
+  # Extraer el F1-score de la matriz de confusión
+  f1_scores <- c(f1_scores, conf_matrix$byClass["F1"])
+}
+```
+
+
+
+```{r}
+# Graficar F1 vs. número de árboles
+df_f2 <- data.frame(max_profundidad, f1_scores)
+
+ggplot(df_f2, aes(x = max_profundidad, y = f1_scores)) +
+  geom_line(color = "blue3", size = 1.2) +
+  geom_point(color = "red", size = 3) +
+  labs(x = "Máxima Profundidad", y = "Puntaje F1", title = "Impacto de max_depth en el F1-score") +
+  theme_minimal()
+```
+
+  - Entre más profundos son los árboles que conforman el Bosque menor será el desempeño obtenido
+  
+  - Esto se debe a que un árbol demasiado profundo tiene a tener sobre-ajuste ("overfitting") y por tanto no tendrá un buen desempeño con los datos de validación. En el caso de un Bosque esto se traduce a un Bosque con un desempeño "bajo" para las muestras OOB.
+  
+**Máximo de Características**
+
+```{r}
+# Definir el rango de max_features
+max_variables <- 1:(ncol(pacientes_train) - 1)  # -1 para excluir la columna de respuesta
+
+# Inicializar un vector para almacenar los F1-scores
+f1_scores <- c()
+
+# Entrenar el modelo con diferentes valores de max_features
+for (max_features in max_variables) {
+  cat("Entrenando con max_features =", max_features, "...\n")
+  
+  # Entrenar el randomForest con el valor de max_features
+  bosque <- randomForest(diagnostico ~ ., data = pacientes_train, ntree = 200, mtry = max_features, importance = T, keep.inbag = T, oob.prox = T)
+  
+  # Obtener las predicciones OOB
+  predicciones_oob <- predict(bosque, type = "response")
+  
+  # Calcular la matriz de confusión
+  conf_matrix <- confusionMatrix(predicciones_oob, pacientes_train$diagnostico, positive = "1")
+  
+  # Calcular el F1-score
+  f1_scores <- c(f1_scores, conf_matrix$byClass["F1"])
+}
+```
+
+```{r}
+# Crear un data frame para graficar
+df_f3 <- data.frame(max_features = max_variables, f1_score = f1_scores)
+
+# Graficar F1-score vs max_features
+ggplot(df_f3, aes(x = max_features, y = f1_score)) +
+  geom_line(color = "blue", lwd = 1.2) +
+  geom_point(color = "red", size = 3) +
+  labs(x = "Máximo número de características", y = "F1-score", title = "Impacto de max_features en el F1-score") +
+  theme_minimal()
+```
+
+  - Entre menos características seleccionadas aleatoriamente usamos para entrenar cada árbol mejor será su desempeño
+  
+  - Esto se debe a que al entrenar con "pocas" características seleccionadas aleatoriamente cada árbol será más diverso y esta diversidad hace que el Bosque tenga menos sobre-ajuste (y por tanto un mejor desempeño).

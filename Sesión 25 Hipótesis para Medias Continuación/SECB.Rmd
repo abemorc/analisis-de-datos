@@ -1,0 +1,90 @@
+---
+title: 'Sesión 26: Prueba de Hipótesis Para Medias'
+author: "David Nexticapan Cortes"
+date: "2025-04-08"
+output: html_document
+---
+
+```{r}
+library(car)
+```
+
+
+# Problema de los Cerereales
+
+Se realizó un estudio acerca del contenido de azúcar en gramos (por gramo de cereal) que tienen algunos cereales. Se seleccionaron al azar diferentes cereales con los resultados mostrados en la base de datos.
+
+Utilice un nivel de significancia de 0.05 para probar la aseveración de un gerente de que la media de todos los cereales es igual que 0.3 g.
+
+Importamos la base de datos
+
+```{r}
+library(readxl)
+Cereales <- read_excel("Cereales.xlsx")
+head(Cereales)
+```
+
+**Análisis Exploratorio**
+```{r}
+colSums(is.na(Cereales)) # No hay valores NA
+```
+
+```{r}
+summary(Cereales$`Azúcar gr`) # TAREA DAR UNA INTERPRETACIÓN DEL SUMMARY
+```
+
+```{r}
+hist(Cereales$`Azúcar gr`, breaks = 5) # TAREA DAR UNA INTERPRETACIÓN
+```
+
+```{r}
+boxplot(Cereales$`Azúcar gr`) # TAREA DAR UNA INTERPRETACIÓN. No hay valores atípicos, también ilustra la asimetría que hay a la derecha.
+```
+
+**Verificación de Supuestos**
+
+  1. Suponemos que los cereales se obtuvieron a través de un MAS
+  
+  2. No se conoce el valor de las desviación estándar poblacional. Usaremos la distribución t-student
+  
+  3. Tenemos 16 datos por lo que debemos de realizar un análisis de normalidad.
+  
+```{r}
+hist(Cereales$`Azúcar gr`, probability = T, ylim = c(0, 1.65))
+lines(density(Cereales$`Azúcar gr`), col = "red", lwd = 3)
+curve(dnorm(x, mean = mean(Cereales$`Azúcar gr`), sd = sd(Cereales$`Azúcar gr`)), col = "blue", lwd = 3, add = TRUE)
+```
+
+```{r}
+qqPlot(Cereales$`Azúcar gr`) # TAREA DAR UNA INTERPRETACIÓN
+Cereales[c(12,13),] # vALORES EXTREMOS
+```
+  
+```{r}
+shapiro.test(Cereales$`Azúcar gr`) # Como p-value = 0.3686 > 0.05 no se rechaza la hipótesis nula. Tenemos la normalidad en nuestros datos.
+```
+  
+**Contraste de Hipótesis**
+
+$$
+H_0: \mu = 0.3 \\
+H_1: \mu \neq 0.3 
+$$
+
+Tenemos una prueba de dos colas
+
+```{r}
+t.test(x = Cereales$`Azúcar gr`,
+       alternative = "two.sided",
+       mu = 0.3,
+       conf.level = 0.95)
+# Como p-value = 0.269 > 0.05 no se rechaza la hipótesis nula.
+# Existe suficiente evidencia estadística para sustentar la aseveración de que el peso medio del contenido de azúcar de los cereales es 0.3 gramos.
+```
+
+# Problema: Consumo de Alcohol
+
+Un crítico de cine tomó una muestra aleatoria de películas infantiles con el propósito de medir el tiempo en el cual se presentan escenas del consumo de alcohol por parte de los personajes.
+
+Utilice los datos de la base “Películas Infantiles” y ponga a prueba la aseveración de un crítico de cine de que “en las películas infantiles que muestran el consumo de alcohol, el tiempo de exposición promedio es de al menos 50 segundos” con un nivel de significancia del 0.01.
+

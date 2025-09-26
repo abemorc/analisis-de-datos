@@ -1,0 +1,415 @@
+---
+title: "Regresión Logística MultiNomial"
+author: "David Nexticapan Cortes"
+date: "2025-04-13"
+output: html_document
+---
+
+Cargamos librearías
+```{r, warning=FALSE, message=FALSE}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(caTools)
+library(caret)
+library(GGally) #pairplot
+```
+
+Este conjunto de datos sobre rotación de empleados (Employee Turnover) es un conjunto de datos real compartido en el blog de Edward Babushkin. 
+
+Cargamos la base de datos:
+```{r}
+turnover <- read_excel("turnover.xlsx")
+head(turnover)
+```
+
+  - stag: Duración antes de la rotación.
+  - event: Variable binaria (1 = renunció, 0 = sigue en la empresa).
+  - gender: Sexo del empleado (m = masculino, f = femenino).
+  - age: Edad del empleado.
+  - industry: Industria donde trabaja el empleado.
+  - profession: Profesión o tipo de puesto.
+  - traffic: Canal de reclutamiento.
+  - coach: ¿Recibió coaching o no? (yes / no).
+  - head_gender: Género del jefe directo.
+  - greywage: Categoría de salario.
+  - way: Medio de transporte (todos "bus" aquí). Quizá es cómo llega al trabajo.
+  - extraversion: Rasgo de personalidad: nivel de extraversión.
+  - independ: Rasgo de personalidad: nivel de independencia.
+  - selfcontrol: Rasgo de personalidad: nivel de autocontrol.
+  - anxiety: Rasgo de personalidad: nivel de ansiedad.
+  - novator: Rasgo de personalidad: nivel de innovación o creatividad (innovator).
+
+**Análisis Exploratorio**
+```{r}
+colSums(is.na(turnover)) # No hay valores NA
+```
+
+```{r}
+str(turnover) # Algunas están como texto y deben convertirse a factores
+glimpse(turnover)
+```
+
+Convertimos nuestras variables categóricas a factor
+```{r}
+turnover$gender <- factor(turnover$gender)
+turnover$industry <- factor(turnover$industry)
+turnover$profession <- factor(turnover$profession)
+turnover$traffic <- factor(turnover$traffic)
+turnover$coach <- factor(turnover$coach)
+turnover$head_gender <- factor(turnover$head_gender)
+turnover$greywage <- factor(turnover$greywage)
+turnover$way <- factor(turnover$way)
+```
+
+Revisamos los niveles de todas las variables factor
+```{r}
+variables_factor <- sapply(turnover, is.factor)
+
+for (variable in names(turnover)[variables_factor]) {
+  cat("Variable:", variable, "\n")
+  print(levels(turnover[[variable]]))
+  cat("\n")
+}
+```
+
+**industry**
+  "Agriculture" → Agricultura
+  "Banks" → Bancos
+  "Building" → Construcción
+  "Consult" → Consultoría
+  "etc" → (Otros / etcétera)
+  "HoReCa" → Hotelería, Restaurantes y Catering (acrónimo de Hospitality + Restaurant + Catering)
+  "IT" → Tecnología de la Información
+  "manufacture" → Manufactura
+  "Mining" → Minería
+  "Pharma" → Industria farmacéutica
+  "PowerGeneration" → Generación de energía
+  "RealEstate" → Bienes raíces
+  "Retail" → Comercio minorista
+  "State" → Sector público / gobierno
+  "Telecom" → Telecomunicaciones
+  "transport" → Transporte
+
+**profession**
+  "Accounting" → Contaduría
+  "BusinessDevelopment" → Desarrollo de negocios
+  "Commercial" → Comercial / Ventas
+  "Consult" → Consultoría
+  "Engineer" → Ingeniería
+  "etc" → Otros
+  "Finanñe" → Finanzas (parece que tiene un error tipográfico, probablemente debería ser "Finance")
+  "HR" → Recursos Humanos
+  "IT" → Tecnología de la Información
+  "Law" → Derecho
+  "manage" → Administración / Dirección
+  "Marketing" → Mercadotecnia
+  "PR" → Relaciones Públicas
+  "Sales" → Ventas
+  "Teaching" → Docencia / Enseñanza
+
+**traffic**
+  "advert" → Anuncio
+  "empjs" → Bolsa de trabajo de empleados.
+  "friends" → Amigos
+  "KA" → Posiblemente una referencia interna o agencia.
+  "rabrecNErab" → Referido no directo.
+  "recNErab" → Recomendación directa.
+  "referal" → Referencia.
+  "youjs" → “usted mismo”, es decir, aplicación directa.
+  
+**coach**
+  "my head" → Mi jefe fue el coach
+  "no" → No tuvo coach
+  "yes" → Sí tuvo coach
+  
+**greywage**
+  "grey" → Salario informal (parcialmente declarado)
+  "white" → Salario formal (100% declarado legalmente)
+
+**way**
+  "bus" → Autobús
+  "car" → Automóvil
+  "foot" → A pie
+
+Realizamos un pairplot con variables numéricas. 
+```{r, message=FALSE, warning=FALSE}
+num_vars <- sapply(turnover, is.numeric)
+turnover_num <- turnover[, num_vars]
+turnover_num$event <- as.factor(turnover$event)  # Añade de nuevo 'event'
+
+# Hacer el ggpairs solo con las numéricas
+ggpairs(data = turnover_num, aes(color = event))
+```
+
+**Aplicación del Modelo**
+
+Dividimos nuestros datos en "Entrenamiento" y "Prueba"
+```{r}
+set.seed(42)
+barajeado <- slice_sample(turnover, prop = 1)
+split <- sample.split(barajeado$stag, SplitRatio = 0.8) # Vector lógico 
+turnover_train <- subset(barajeado, split == TRUE)
+turnover_test <- subset(barajeado, split == FALSE)
+```
+
+```{r}
+# Ajuste del modelo de regresión logística
+modelo <- glm(event ~ ., 
+              data = turnover_train, 
+              family = binomial)
+
+# Resumen del modelo
+summary(modelo)
+```
+
+  - El valor de AIC (1199.4) indica el equilibrio que encontró el modelo entre un buen ajuste y simplicidad.
+  
+  - Al analizar los coeficientes estimados, observamos que varias variables son estadísticamente significativas. Por ejemplo, las variables stag, age, traffic y way tienen valores de p muy bajos, lo cual indica que tienen un efecto importante en la probabilidad de que un trabajador renuncie. 
+
+
+Modelo 1: Realizamos nuestras predicciones
+```{r}
+predicciones <- predict(modelo, newdata = turnover_train, type = "response")
+head(predicciones)
+# type = "response": Esto indica que deseas obtener las probabilidades predichas (valores entre 0 y 1).
+```
+
+Modelo 1: Realziamos nuestra clasificación
+```{r}
+# Clasificación basada en el umbral de 0.5
+clasificacion <- ifelse(predicciones < 0.5, 0, 1)
+
+# Mostrar la clasificación
+head(clasificacion)
+```
+
+Modelo 1: Generamos las predicciones de probabilidad para el conjunto de prueba "test" usando el modelo de regresión logística.
+```{r}
+# Paso 1: Calcular las probabilidades para los datos de prueba
+probabilidades <- predict(modelo, newdata = turnover_test, type = "response")
+head(probabilidades)
+
+# Paso 2: Convertir probabilidades en clases 0 o 1 con umbral 0.5
+predicciones_clase <- ifelse(probabilidades < 0.5, 0, 1)
+head(predicciones_clase)
+```
+
+Modelo 1: Generamos la matriz de confusiones y calculamos las métricas
+```{r}
+# Hay que asegurarse que ambas estén como factores
+y_real <- factor(turnover_test$event, levels = c(0, 1))
+y_pred  <- factor(predicciones_clase, levels = c(0, 1))
+
+# Matriz de confusión y métricas
+conf_matrix <- confusionMatrix(data = y_pred, reference = y_real, positive = "1")
+print(conf_matrix$table)
+
+# Métricas individuales
+accuracy <- conf_matrix$overall["Accuracy"] # Proporción total de predicciones correctas.
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+f1 <- conf_matrix$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  - Verdaderos negativos (TN = 70): El modelo predijo correctamente que 70 trabajadores no renunciaron, y efectivamente no lo hicieron.
+  
+  - Verdaderos positivos (TP = 70): El modelo predijo correctamente que 70 trabajadores renunciaron, y efectivamente lo hicieron.
+  
+  - Falsos negativos (FN = 45): El modelo predijo que 45 trabajadores no renunciaron, pero en realidad sí lo hicieron. Esto implica que el modelo falló en identificar a estos empleados que efectivamente renunciaron.
+  
+  - Falsos positivos (FP = 31): El modelo predijo que 31 trabajadores renunciaron, pero en realidad no lo hicieron. Esto representa errores al clasificar trabajadores como desertores cuando en realidad permanecieron.
+  
+  - Exactitud (Accuracy = 61.95%): El modelo tuvo un 61.95% de aciertos al clasificar correctamente tanto a los trabajadores que renunciaron como a los que no lo hicieron.
+  
+  - Precisión (Precision = 63.06%): De todos los trabajadores que el modelo clasificó como que sí renunciaron, el 63.06% realmente lo hicieron, aunque aún existe una proporción considerable de falsos positivos.
+  
+  - Sensibilidad (Recall = 60.87%): De todos los trabajadores que sí renunciaron, el modelo identificó correctamente al 60.87%. Esto muestra que el modelo no detecta a todos los casos reales de renuncia (hay bastantes falsos negativos).
+  
+  - Un F1 Score de 61.94% indica que el modelo tiene un desempeño moderado para identificar correctamente a los trabajadores que renunciaron, sin caer demasiado en errores por omisión (FN) o por exceso (FP)
+  
+
+#**Modelo 2**
+
+```{r}
+modelo2 <- glm(event ~ stag + age + traffic + way, family = binomial, data = turnover_train)
+summary(modelo2)
+```
+
+  - El valor de AIC (1229.5) indica el equilibrio que encontró el modelo entre un buen ajuste y simplicidad. El Modelo 1 ajusta mejor los datos sin ser innecesariamente complejo.
+  
+  - Al analizar los coeficientes estimados, observamos que varias variables son estadísticamente significativas. Por ejemplo, las variables antiguedad, edad, reclutamiento por referencia y caminar a pie al trabajo tienen valores de p muy bajos, lo cual indica que tienen un efecto importante en la probabilidad de que un trabajador renuncie. 
+
+Modelo 2: Realizamos nuestras predicciones
+```{r}
+predicciones2 <- predict(modelo2, newdata = turnover_train, type = "response")
+head(predicciones2)
+# type = "response": Esto indica que deseas obtener las probabilidades predichas (valores entre 0 y 1).
+```
+
+Modelo 2: Realziamos nuestra clasificación
+```{r}
+# Clasificación basada en el umbral de 0.5
+clasificacion2 <- ifelse(predicciones2 < 0.5, 0, 1)
+
+# Mostrar la clasificación
+head(clasificacion2)
+```
+
+Modelo 2: Generamos las predicciones de probabilidad para el conjunto de prueba "test" usando el modelo de regresión logística.
+```{r}
+# Paso 1: Calcular las probabilidades para los datos de prueba
+probabilidades2 <- predict(modelo2, newdata = turnover_test, type = "response")
+head(probabilidades2)
+
+# Paso 2: Convertir probabilidades en clases 0 o 1 con umbral 0.5
+predicciones_clase2 <- ifelse(probabilidades2 < 0.5, 0, 1)
+head(predicciones_clase2)
+```
+
+Modelo 2: Generamos la matriz de confusiones y calculamos las métricas
+```{r}
+# Hay que asegurarse que ambas estén como factores
+y_real <- factor(turnover_test$event, levels = c(0, 1))
+y_pred  <- factor(predicciones_clase2, levels = c(0, 1))
+
+# Matriz de confusión y métricas
+conf_matrix <- confusionMatrix(data = y_pred, reference = y_real, positive = "1")
+print(conf_matrix$table)
+
+# Métricas individuales
+accuracy <- conf_matrix$overall["Accuracy"] # Proporción total de predicciones correctas.
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+f1 <- conf_matrix$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  - Verdaderos negativos (TN = 58): El modelo predijo correctamente que 58 trabajadores no renunciaron, y efectivamente no lo hicieron.
+  
+  - Verdaderos positivos (80): El modelo predijo correctamente que 80 trabajadores renunciaron, y efectivamente lo hicieron.
+  
+  - Falsos negativos (FN = 35): El modelo predijo que 35 trabajadores no renunciaron, pero en realidad sí lo hicieron. Esto implica que el modelo falló en identificar a estos empleados que efectivamente renunciaron.
+  
+  - Falsos positivos (FP = 53): El modelo predijo que 53 trabajadores renunciaron, pero en realidad no lo hicieron. Esto representa errores al clasificar trabajadores como desertores cuando en realidad permanecieron.
+  
+  - Exactitud (Accuracy = 61.06%): El modelo tuvo un 61.06% de aciertos al clasificar correctamente tanto a los trabajadores que renunciaron como a los que no lo hicieron.
+  
+  - Precisión (Precision = 60.15%): De todos los trabajadores que el modelo clasificó como que sí renunciaron, el 60.15% realmente lo hicieron, aunque aún existe una proporción considerable de falsos positivos.
+  
+  - Sensibilidad (Recall = 69.56%): De todos los trabajadores que sí renunciaron, el modelo identificó correctamente al 69.56%. Esto muestra que el modelo no detecta a todos los casos reales de renuncia (hay bastantes falsos negativos). Pero es mejor que el modelo 1 ya que reduce los casos falsos negativos. 
+  
+  - Un F1 Score de 64.51% indica que el modelo tiene un desempeño moderado para identificar correctamente a los trabajadores que renunciaron, sin caer demasiado en errores por omisión (FN) o por exceso (FP)
+
+
+#**Modelo 3**
+
+```{r}
+modelo_step <- step(glm(event ~ ., family = binomial, data = turnover_train), direction = "both")
+summary(modelo_step)
+```
+
+  - El valor de AIC (1189.1) indica el equilibrio que encontró el modelo entre un buen ajuste y simplicidad. Es ligeramente menor que el del Modelo 1.
+  
+  - Al analizar los coeficientes estimados, observamos que varias variables son estadísticamente significativas. El modelo nos sugiere las variables antiguedad, edad, industria, reclutamiento, coaching, sexo del jefe, forma de transportarse y nivel de ansiedad, lo cual indica que tienen un efecto importante en la probabilidad de que un trabajador renuncie.  
+
+Modelo 3: Realizamos nuestras predicciones
+```{r}
+predicciones3 <- predict(modelo_step, newdata = turnover_train, type = "response")
+head(predicciones3)
+# type = "response": Esto indica que deseas obtener las probabilidades predichas (valores entre 0 y 1).
+```
+
+Modelo 3: Realziamos nuestra clasificación
+```{r}
+# Clasificación basada en el umbral de 0.5
+clasificacion3 <- ifelse(predicciones3 < 0.5, 0, 1)
+
+# Mostrar la clasificación
+head(clasificacion3)
+```
+
+Modelo 3: Generamos las predicciones de probabilidad para el conjunto de prueba "test" usando el modelo de regresión logística.
+```{r}
+# Paso 1: Calcular las probabilidades para los datos de prueba
+probabilidades3 <- predict(modelo_step, newdata = turnover_test, type = "response")
+head(probabilidades3)
+
+# Paso 2: Convertir probabilidades en clases 0 o 1 con umbral 0.5
+predicciones_clase3 <- ifelse(probabilidades3 < 0.5, 0, 1)
+head(predicciones_clase3)
+```
+
+Modelo 3: Generamos la matriz de confusiones y calculamos las métricas
+```{r}
+# Hay que asegurarse que ambas estén como factores
+y_real <- factor(turnover_test$event, levels = c(0, 1))
+y_pred  <- factor(predicciones_clase3, levels = c(0, 1))
+
+# Matriz de confusión y métricas
+conf_matrix <- confusionMatrix(data = y_pred, reference = y_real, positive = "1")
+print(conf_matrix$table)
+
+# Métricas individuales
+accuracy <- conf_matrix$overall["Accuracy"] # Proporción total de predicciones correctas.
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+f1 <- conf_matrix$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  - Verdaderos negativos (TN = 66): El modelo predijo correctamente que 66 trabajadores no renunciaron, y efectivamente no lo hicieron.
+  
+  - Verdaderos positivos (TP = 69): El modelo predijo correctamente que 69 trabajadores renunciaron, y efectivamente lo hicieron.
+  
+  - Falsos negativos (FN = 46): El modelo predijo que 46 trabajadores no renunciaron, pero en realidad sí lo hicieron. Esto implica que el modelo falló en identificar a estos empleados que efectivamente renunciaron.
+  
+  - Falsos positivos (FP = 45): El modelo predijo que 45 trabajadores renunciaron, pero en realidad no lo hicieron. Esto representa errores al clasificar trabajadores como desertores cuando en realidad permanecieron.
+  
+  - Exactitud (Accuracy = 59.73%): El modelo tuvo un 59.73% de aciertos al clasificar correctamente tanto a los trabajadores que renunciaron como a los que no lo hicieron.
+  
+  - Precisión (Precision = 60.53%): De todos los trabajadores que el modelo clasificó como que sí renunciaron, el 60.53% realmente lo hicieron, aunque aún existe una proporción considerable de falsos positivos.
+  
+  - Sensibilidad (Recall = 60%): De todos los trabajadores que sí renunciaron, el modelo identificó correctamente al 60%. Esto muestra que el modelo no detecta a todos los casos reales de renuncia (hay bastantes falsos negativos). Pero es mejor que el modelo 1 ya que reduce los casos falsos negativos. 
+  
+  - Un F1 Score de 60.26% indica que el modelo tiene un desempeño moderado para identificar correctamente a los trabajadores que renunciaron, sin caer demasiado en errores por omisión (FN) o por exceso (FP)
+
+$$
+\begin{array}{|l|c|c|c|}
+\hline
+\textbf{Métrica} & \textbf{Modelo 1} & \textbf{Modelo 2} & \textbf{Modelo 3} \\
+\hline
+\text{Verdaderos Negativos (TN)} & \mathbf{70} & 61 & 66 \\
+\text{Falsos Positivos (FP)}     & \mathbf{41} & 50 & 45 \\
+\text{Falsos Negativos (FN)}     & 45 & \mathbf{36} & 46 \\
+\text{Verdaderos Positivos (TP)} & 70 & \mathbf{79} & 69 \\
+\text{Exactitud (Accuracy)}      & \mathbf{61.95\%} & \mathbf{61.95\%} & 59.73\% \\
+\text{Precisión (Precision)}     & \mathbf{63.06\%} & 61.24\% & 60.53\% \\
+\text{Sensibilidad (Recall)}     & 60.87\% & \mathbf{68.70\%} & 60.00\% \\
+\text{F1 Score}                  & 61.95\% & \mathbf{64.75\%} & 60.26\% \\
+\text{AIC}                       & 1199.4 & 1533.6 & \mathbf{1189.1} \\
+\hline
+\end{array}
+$$
+
+  - Si es de nuestro interés detectar correctamente a los trabajadores que van a renunciar (Recall/Sensibilidad), el Modelo 2 es la mejor opción, aunque es más complejo (alto AIC).
+  
+  - Si es de nuestro interés un modelo más balanceado, más simple y con buen ajuste general (menor AIC y buena precisión), el Modelo 1 es mejor.
+  
+  - Modelo 3 no es recomendable por su menor desempeño en casi todas las métricas.

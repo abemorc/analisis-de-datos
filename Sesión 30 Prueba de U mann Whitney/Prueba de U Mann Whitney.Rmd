@@ -1,0 +1,428 @@
+---
+title: 'Sesión 28: Prueba de U Mann Whitney'
+author: "David Nexticapan Cortes"
+date: "2024-10-20"
+output: html_document
+---
+
+Cargamos las librerías 
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(nortest)
+library(car)
+```
+
+#**Problema 1:** Diabetes 
+
+Remítase a la base de datos "diabetes" que entre muchas variables tenemos la glucosa en ayunas y el género de los pacientes. Utilice un nivel de significancia del 5% para probar la aseveración de que la media de la glucosa en ayunas de los hombres es igual a la media de la glucosa en ayunas de las mujeres. 
+
+Cargamos la base de datos
+```{r}
+diabetes <- read_excel("diabetes.xlsx")
+head(diabetes)
+```
+
+**Análisis Exploratorio**
+
+```{r}
+colSums(is.na(diabetes)) # No hay presencia de valores NA en las variables de interés.
+```
+
+```{r}
+#Filtramos para mujeres 
+df_female <- diabetes %>% 
+  filter(gender == "female") %>% 
+  select(stab.glu)
+
+# Filtramos para hombres
+df_male <- diabetes %>% 
+  filter(gender == "male") %>% 
+  select(stab.glu)
+
+# Realizamos el summary
+summary(df_female)
+summary(df_male)
+```
+
+  -
+  
+  -
+  
+  -
+
+```{r}
+hist(df_female$stab.glu, probability = T, col = "salmon", breaks = nclass.scott(df_female$stab.glu), ylim = c(0,0.025))
+lines(density(df_female$stab.glu), col = "red", lwd = 3)
+
+hist(df_male$stab.glu, probability = T, col = "blue", breaks = nclass.scott(df_male$stab.glu), ylim = c(0,0.025))
+lines(density(df_male$stab.glu), col = "lightblue2", lwd = 3)
+```
+
+  -
+  
+  -
+  
+  -
+
+```{r}
+# Realizamos BoxPlot
+boxplot(df_female$stab.glu, df_male$stab.glu, names = c("Mujeres", "Hombres"), col = c("salmon", "blue"))
+```
+
+  -
+  
+  -
+  
+  -
+  
+```{r}
+# Summary del Boxplot
+boxplot.stats(df_female$stab.glu)
+boxplot.stats(df_male$stab.glu)
+```
+
+  -
+  
+  -
+  
+  -
+
+**Verificamos supuestos:**
+
+  1. Las muestras sí son independientes (eres hombre o mujer)
+  2. Las muestras se seleccionaron a través de un muestreo aleatorio.
+  3. Aunque en cada muestra tenemos más de 30 datos, verificamos la normalidad de los datos.
+
+Aplicamos test Kolmogorov-Smirnov.
+
+```{r}
+hist(df_female$stab.glu, probability = T, col = "salmon", breaks = nclass.scott(df_female$stab.glu), ylim = c(0,0.025))
+lines(density(df_female$stab.glu), col = "red", lwd = 3)
+curve(dnorm(x, mean = mean(df_female$stab.glu), sd = sd(df_female$stab.glu)), col = "red4", lwd = 3, add = T)
+
+hist(df_male$stab.glu, probability = T, col = "blue", breaks = nclass.scott(df_male$stab.glu), ylim = c(0,0.025))
+lines(density(df_male$stab.glu), col = "lightblue3", lwd = 3)
+curve(dnorm(x, mean = mean(df_male$stab.glu), sd = sd(df_male$stab.glu)), col = "purple3", lwd = 3, add = T)
+```
+  
+  -
+  
+  -
+
+```{r}
+qqPlot(df_female$stab.glu, col = "salmon", pch = 20)
+qqPlot(df_male$stab.glu, col = "salmon", pch = 20)
+```
+
+  -
+  
+  -
+
+```{r}
+lillie.test(df_female$stab.glu)
+lillie.test(df_male$stab.glu)
+
+# Forma alternativa
+tapply(diabetes$stab.glu, diabetes$gender, function(x) lillie.test(x)$p.value)
+```
+
+  -
+  
+  -
+  
+**Contraste de Hipótesis**
+
+$M_1:$ Mediana de la glucosa en ayunas de las mujeres
+$M_2:$ Mediana de la glucosa en ayunas de los hombres
+
+$$
+H_0:M_1 = M_2\\
+H_1:M_1\neq M_2
+$$
+
+```{r}
+wilcox.test(x = df_female$stab.glu, 
+            y = df_male$stab.glu,
+            alternative = "two.sided",
+            mu = 0,
+            paired = FALSE,
+            conf.level = 0.95)
+```
+  
+  - Decisión: Como p_value = 0.4737 > 0.05 no se rechaza la hipótesis nula.
+  
+  - Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que la mediana de glucosa en ayunas de los hombres es igual a la mediana de la glucosa en ayunas de las mujeres. 
+
+
+#**Problema 2:** Problema Swift y Beyonce
+
+Una empresa de análisis musical está interesada en comparar la positividad musical promedio, medida por la variable "valence", entre las canciones de Taylor Swift y Beyoncé. La variable "valence" es una medida que varía de 0.0 a 1.0 e indica la positividad musical que transmite una pista a las personas, donde valores más altos indican una mayor positividad.
+
+Antes de realizar la comparación, la empresa necesita calcular el tamaño de muestra necesario para obtener resultados confiables con un nivel de confianza del 90% y un margen de error 0.040 puntos.
+
+Una vez que se haya determinado el tamaño de muestra adecuado, se procederá a seleccionar algunas canciones de Taylor Swift y Beyoncé de las bases de datos mediante un muestreo aleatorio, con el objetivo de asegurar una representación adecuada de ambas artistas en la muestra.
+
+Una vez seleccionadas las canciones, se analizará la positividad musical de cada canción utilizando la variable "valence". Se aplicará una prueba de hipótesis para comparar las medias de "valence" entre Taylor Swift y Beyoncé, con el objetivo de determinar si hay una diferencia significativa en la positividad musical entre las canciones de ambas artistas.
+
+Importamos las bases de datos.
+```{r}
+Beyonce <- read_excel("Beyonce1.xlsx")
+head(Beyonce)
+Taylor <- read_excel("TaylorSwift1.xlsx")
+head(Taylor)
+```
+
+**Análisis Exploratorio**
+
+```{r}
+# Realizamos una selección de la variable de interés
+valence_beyonce <- select(Beyonce, track_name, valence)
+valence_taylor <- select(Taylor, name, valence)
+```
+
+```{r}
+colSums(is.na(valence_beyonce)) # No hay valores NA
+colSums(is.na(valence_taylor)) # No hay valores NA
+```
+
+```{r}
+summary(valence_beyonce$valence)
+summary(valence_taylor$valence)
+```
+  
+  -
+  
+  -
+  
+  -
+  
+```{r}
+# Realizamos los histogramas
+hist(valence_beyonce$valence, probability = T, breaks = nclass.scott(valence_beyonce$valence), col = "yellow3")
+lines(density(valence_beyonce$valence), col = "blue4", lwd = 3)
+
+hist(valence_taylor$valence, probability = T, breaks = nclass.scott(valence_taylor$valence), ylim = c(0, 2), col = "pink2")
+lines(density(valence_taylor$valence), col = "blue4", lwd = 3)
+```
+
+  -
+  
+  -
+  
+  -
+  
+  
+```{r}
+boxplot(valence_beyonce$valence, valence_taylor$valence,
+        names = c("Beyonce", "Taylor"),
+        col = c("yellow", "pink2"))
+```
+
+  -
+  
+  -
+  
+  -
+  
+```{r}
+resumen_beyonce <- boxplot.stats(valence_beyonce$valence)
+resumen_beyonce
+
+resumen_taylor <- boxplot.stats(valence_taylor$valence)
+resumen_taylor
+```
+
+Calculamos el tamaño de muestra para medias con sigma conocida
+```{r}
+tamaño_muestra <- function(sigma, alfa, Error, N){
+  z <- qnorm(1 - alfa/2)
+  muestra <- ceiling(((z*sigma)^2*N)/((z*sigma)^2+(N-1)*Error^2))
+}
+
+tamaño_beyonce <- tamaño_muestra(sigma = sd(valence_beyonce$valence), alfa = 0.10, Error = 0.040, N = length(valence_beyonce$track_name)) # 73 para Beyonce
+tamaño_beyonce
+
+tamaño_taylor <- tamaño_muestra(sigma = sd(valence_taylor$valence), alfa = 0.10, Error = 0.040, N = length(valence_taylor$name)) # 47 para Taylor
+tamaño_taylor
+```
+
+Seleccionamos una muestra para cada artista a través de un muestreo aleatorio sin reemplazo.
+```{r}
+set.seed(234)
+beyocen_barajeada <- slice_sample(valence_beyonce, prop = 1)
+taylor_barajeada <- slice_sample(valence_taylor, prop = 1)
+
+muestra_beyonce <- slice_sample(beyocen_barajeada, n = tamaño_beyonce, replace = FALSE)
+head(muestra_beyonce)
+
+muestra_taylor <- slice_sample(taylor_barajeada, n = tamaño_taylor, replace = FALSE)
+head(muestra_taylor)
+```
+
+```{r}
+boxplot(muestra_beyonce$valence, muestra_taylor$valence,
+        names = c("Beyonce", "Taylor"),
+        col = c("yellow", "pink2"))
+```
+
+  -
+  
+  -
+  
+  
+Verificamos supuestos
+
+  1. Las muestras son indpendientes (Beyoncé o Taylor)
+  2. Las muestras se obtuvieron a través de un muestreo aleatorio.
+  3. Aunque tenemos más de 30 datos en cada muestra, verifiquemos la normalidad.
+  
+```{r}
+# Realizamos los histogramas
+hist(muestra_beyonce$valence, probability = T, breaks = nclass.scott(muestra_beyonce$valence), col = "yellow2")
+lines(density(muestra_beyonce$valence), col = "blue4", lwd = 2)
+curve(dnorm(x, mean = mean(muestra_beyonce$valence), sd = sd(muestra_beyonce$valence)), col = "red", lwd = 2, add = T)
+
+hist(muestra_taylor$valence, probability = T, breaks = nclass.scott(muestra_taylor$valence), ylim = c(0, 2), col = "pink2")
+lines(density(muestra_taylor$valence), col = "blue4", lwd = 2)
+curve(dnorm(x, mean = mean(muestra_taylor$valence), sd = sd(muestra_taylor$valence)), col = "red", lwd = 2, add = T)
+```
+  
+  -
+  
+  -
+  
+```{r}
+qqPlot(muestra_beyonce$valence)
+muestra_beyonce$track_name[c(39,56)]
+qqPlot(muestra_taylor$valence)
+muestra_taylor$name[c(18,44)]
+```
+  
+  -
+  
+  -
+  
+```{r}
+lillie.test(muestra_beyonce$valence)
+shapiro.test(muestra_taylor$valence) 
+```
+
+  -
+  
+  -
+  
+Planteamos el siguiente juego de hipótesis:
+
+$M_1:$ Mediana valence Beyoncé
+$M_2:$ Mediana valence Taylor
+$$
+H_0:M_1 \leq M_2\\
+H_1:M_1 > M_2
+$$
+
+```{r}
+wilcox.test(x = muestra_beyonce$valence, 
+            y= muestra_taylor$valence,
+            alternative = "greater",
+            mu = 0,
+            paired = FALSE,
+            conf.level = 0.90)
+```
+
+  Decisión: Como p-value = 0.006798 < 0.10 se rechaza la hipótesis nula en favor de la alternativa.
+
+  Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que la mediana de la positividad musical de Beyoncé es mayor que la mediana de la positividad musical de Taylor Swift. 
+
+#**Problema 3:** Muestras Pareadas
+
+Diez individuos seleccionados aleatoriamente participaron en un programa para perder peso corporal por medio de una dieta. Los sujetos fueron pesados antes y después de haber participado en el programa y los datos en kilos aparecen abajo. ¿Hay evidencia que soporte la afirmación de la dieta disminuye el peso medio de los participantes? Usar nivel de significancia del 5%.
+
+Antes: 88.450, 96.615, 112.039, 91.172, 84.821, 95.254, 97.522, 111.587, 133.356, 140.614
+Despúes: 84.821, 90.450, 105.244, 86.183, 79.379, 96.362, 90.272, 100.244, 126.099, 129.272
+
+Extraemos informacion importante
+
+```{r}
+pesos_antes <- c(88.450, 96.615, 112.039, 91.172, 84.821, 95.254, 97.522, 111.587, 133.356, 140.614)
+peso_despues <- c(84.821, 90.450, 105.244, 86.183, 79.379, 96.362, 90.272, 100.244, 126.099, 129.272)
+diferencias_peso <- pesos_antes - peso_despues
+diferencias_peso
+```
+
+**Análisis Exploratorio**
+
+```{r}
+summary(pesos_antes)
+summary(peso_despues)
+```
+  
+  -
+  
+  -
+  
+  -
+  
+```{r}
+hist(pesos_antes, probability = T, breaks = nclass.scott(pesos_antes))
+lines(density(pesos_antes), col = "blue4", lwd = 3)
+
+hist(peso_despues, probability = T, breaks = nclass.scott(peso_despues))
+lines(density(peso_despues), col = "blue4", lwd = 3)
+```
+
+  -
+  
+  -
+  
+```{r}
+boxplot(pesos_antes, peso_despues,
+        names = c("Antes", "Despúes"))
+```
+
+  -
+  
+  -
+  
+**Verificación de Requisitos**
+
+  Requisito 1: Las muestras son pareadas ya que hay un antes y un despúes de la dieta.
+  
+  Requisito 2: Los sujetos se seleccionaron a través de un muestreo aleatorio.
+  
+  Requisito 3: Verifiquemos que hay normalidad en los datos (antes y despúes) y en las diferencias.
+
+```{r}
+shapiro.test(pesos_antes)
+shapiro.test(peso_despues)
+shapiro.test(diferencias_peso)
+```
+
+  -
+  
+  -
+  
+  -
+  
+Planteamos el siguiente juego de hipótesis y procedemos a realizar el contraste de hipótesis.
+
+$\mu_1:$ Peso medio antes de la dieta
+$\mu_2:$ Peso medio despúes de la dieta
+$$
+H_0:\mu_1 \leq \mu_2 \\
+H_1:\mu_1 > \mu_2
+$$
+
+```{r}
+t.test(x = pesos_antes,
+       y = peso_despues,
+       alternative = "greater",
+       mu = 0,
+       paired = TRUE,
+       conf.level = 0.95)
+```
+
+  - 
+  
+  -
+  

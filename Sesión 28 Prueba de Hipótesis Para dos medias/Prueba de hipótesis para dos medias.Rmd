@@ -1,0 +1,374 @@
+---
+title: "Prueba de Hipótesis para dos medias"
+author: "David Nexticapan Cortes"
+date: "2024-04-02"
+output: word_document
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(car) # Usar qqPlot
+library(BSDA)
+library(nortest)
+```
+
+# Problema 1: Discriminación por edad
+
+Una empresa realizó un concurso de promoción para ocupar el puesto de gerente. A continuación, se muestran las edades de algunos solicitantes elegidos al azar que tuvieron éxito y de los que no tuvieron éxito. Algunos de los solicitantes que no tuvieron éxito para obtener el ascenso se quejaron de que hubo discriminación por edad en la competencia. Utilice un nivel se significancia de 0.05 para poner a prueba la aseveración de que los solicitantes sin éxito provienen de una población con una edad media mayor que la de los solicitantes exitosos. ¿Parece haber discriminación por la edad?
+
+Edades de solicitantes sin éxito: 34, 37, 37, 38, 41, 42, 43, 44, 44, 45, 45, 45, 46, 48, 49, 53, 53, 54, 54, 55, 56, 57, 60
+
+Edades de solicitantes con éxito: 27, 33, 36, 37, 38, 38, 39, 42, 42, 43, 43, 44, 44, 44, 45, 45, 45, 45, 46, 46, 47, 47, 48, 48, 49, 49, 51, 51, 52, 54
+
+**Análisis Exploratorio**
+
+```{r}
+# Creamos nustros vectores de edades
+sin_exito <- c(34, 37, 37, 38, 41, 42, 43, 44, 44, 45, 45, 45, 46, 48, 49, 53, 53, 54, 54, 55, 56, 57, 60)
+con_exito <- c(27, 33, 36, 37, 38, 38, 39, 42, 42, 43, 43, 44, 44, 44, 45, 45, 45, 45, 46, 46, 47, 47, 48, 48, 49, 49, 51, 51, 52, 54)
+```
+
+```{r}
+# Realizamos un summary
+summary(sin_exito)
+summary(con_exito)
+```
+  - ¿Qué podemos decir de la asimetría de la distribución?
+  - ¿Qué interpretación podemos decir de los cuartiles?
+  - ¿Que pudieramos inferir sobre la hipótesis que se está aseverando?
+  
+```{r}
+# Realizamos un histograma
+hist(sin_exito, breaks = nclass.Sturges(sin_exito))
+hist(con_exito, breaks = nclass.Sturges(con_exito))
+```
+
+  - ¿Qué podemos concluir acerca de la asimetría de las distribuciones?
+  
+```{r}
+# Realizamos un boxplot
+boxplot(sin_exito, con_exito)
+outlier_con_exito <- boxplot.stats(con_exito)$out
+outlier_con_exito
+indice_outlier <- which(con_exito %in% outlier_con_exito)
+indice_outlier
+```
+
+  - ¿Qué podemos interpretar del boxplot?
+  - A través del BoxPlot ¿Que pudieramos inferir sobre la hipótesis que se está aseverando?
+  - ¿Cuál es el valor del outlier y a qué observación pertenece?
+
+**Interpretación:** 
+- Con respecto al summary, podemos observar que ambas muestras tienen la misma mediana, pero diferente media. Las personas que no tuvieron éxito la mediana es menor que la media lo que pudiera sugerir que la distribución es sesgada a la derecha, mientras que en las personas que tuvieron éxito sucede lo contrario. 
+- Con los histogramos podemos identificar que en fecto, la distribución de la edad de los trabajadores que no tuvieron éxito está sesgada a la derecha y de los que si tuvieron éxito está sesgada a la izquierda.
+- Respecto al boxplot, podemos observar que tenemos un valor atípico en las personas que tuvieron éxito, esta edad corresponde a los 27 años. Además, a través del gráfico y del summary se puede observar que el tercer cuartil de las edades "con éxito" es menor que las edades "sin éxito".
+
+**Verificación de supuestos:**
+  - Las muestras si son indpendientes (tuviste éxito o no lo tuviste)
+  - Las muestras si fueron seleccionadas a través de un muestreo aleatorio.
+  - No tenemos más de 30 datos en cada muestra, por lo que debemos verificar la normalidad en ambas muestras.
+
+Histogramas
+
+```{r}
+# Histogramas
+hist(sin_exito, probability = TRUE, main = "Histograma de edad sin éxito", xlab = "Edad", ylab = "Densidad", col = "gray", xlim = c(20,80))
+lines(density(sin_exito), col = "blue", lwd = 3)
+curve(dnorm(x, mean(sin_exito), sd(sin_exito)), col = "red", lwd = 3, add = T)
+legend("topright", legend = c("Densidad Empírica", "Densidad Teórica"), col = c("blue","red"), lwd = 3)
+
+hist(con_exito, probability = TRUE, main = "Histograma de edad con éxito", xlab = "Edad", ylab = "Densidad", col = "gray", xlim = c(20,70), ylim = c(0,0.1))
+lines(density(con_exito), col = "blue", lwd = 3)
+curve(dnorm(x, mean(con_exito), sd(con_exito)), col = "red", lwd = 3, add = T)
+legend("topright", legend = c("Densidad Empírica", "Densidad Teórica"), col = c("blue","red"), lwd = 3)
+```
+
+**Interpretación:** Podemos observar de los gráficos que las curvas de densidad teórica y empírica dificilmente coniciden, por lo que una distribución normal pudiera de ajustarse a nuestros datos.
+
+QQ-Norm
+
+```{r}
+library(car)
+qqPlot(sin_exito, pch = 16, col = "red", cex = 1.5)
+qqPlot(con_exito, pch = 16, col = "purple", cex = 1.5)
+```
+
+**Interpretación:**  
+  - En el primer gráfico se puede observar que los puntos se van ajustando bien a la recta y se encuentran dentro de las bandas de confianza, sin embargo, la obervación 1 y 23 pudieran ser valores extremos que impactan en el modelo.
+  - En el segundo gráfico se pueden observar que hay varios puntos que se salen de la banda de confianza y no se ajustan a la recta, además las observaciones 1 y 2 son puntos extremos que pudeden impactar significativamente en el modelo.
+
+Prueba de Normalidad test Shapiro-Wilk ya que hay menos de 50 datos en cada muestra.
+```{r}
+shapiro.test(sin_exito) 
+shapiro.test(con_exito)
+```
+**Interpretación:**
+  - Como p-value = 0.5039 > 0.05 no se rechaza la hipótesis nula de que las edades de los solicitantes que no tuvieron éxito siguen una distribución aproximadamente normal.
+  - Como p-value = 0.1831 > 0.05 no se rechaza la hipótesis nula de que las edades de los solicitantes que tuvieron éxito siguen una distribución aproximadamente normal.
+  
+Verifiquemos si hay varianzas iguales (homocedasticidad)
+```{r}
+var.test(sin_exito, con_exito)
+```
+  - Decisión: Como p_value = 0.299 > 0.05 No se rechaza la hipótesis nula de que los datos de ambas muestras tienen varianzas iguales. 
+
+Planteamos el siguiente juego de hipótesis:
+
+$$
+H_0:\mu_1\leq \mu_2\\
+H_1:\mu_1>\mu_2 \\
+\mu_1 : \; Edad\;media \;trabajadores\;sin\;exito\\
+\mu_2 : \; Edad\;media \;trabajadores\;con\;exito
+$$
+
+```{r}
+t.test(x = sin_exito,
+       y = con_exito,
+       alternative = "greater",
+       mu = 0,
+       var.equal = TRUE,
+       conf.level = 0.95)
+```
+
+**Conclusiones Finales:**
+  - Decisión: Como p_value = 0.04957 < 0.05 se rechaza la hipótesis nula en favor de la alternativa.
+  - Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que la edad media de los trabajadores que no tuvieron éxito en el ascenso es mayor que la edad media de los trabajadores que sí tuvieron éxito.
+  - Pudiera pensarse de que si hubo discriminación por edad.
+
+
+# Problema 2: Exposición a VIH
+
+El siguiente conjunto de datos proporciona información sobre personas que estuvieron expuestas al VIH por una situación de riesgo. Este conjunto de datos está tomado de un hospital donde se eligieron aleatoriamente algunas personas que proporcionaron información similar sobre su experiencia.
+
+Con base en estos datos, se desea realizar una prueba de hipótesis de diferencia de medias para evaluar si la edad promedio de las personas expuestas al VIH que dieron positivo es distinta de la edad promedio de las personas que dieron negativo.
+
+Importamos la base de datos
+```{r}
+HIV <- read_excel("HIV.xlsx")
+head(HIV)
+```
+
+**Análisis Exploratorio**
+```{r}
+# Filtramos nuestra base de datos.
+library(dplyr)
+VIH_POSITIVO <- HIV %>% 
+  filter(Result == "POSITIVE") %>% 
+  select(Age)
+
+VIH_NEGATIVO <- HIV %>% 
+  filter(Result == "NEGATIVE") %>% 
+  select(Age)
+
+# Realizamos un summary
+summary(VIH_POSITIVO)
+summary(VIH_NEGATIVO)
+
+# Realizamos un histograma
+hist(VIH_POSITIVO$Age, breaks = nclass.Sturges(VIH_POSITIVO$Age))
+hist(VIH_NEGATIVO$Age, breaks = nclass.Sturges(VIH_NEGATIVO$Age))
+
+# Realizamos un boxplot
+boxplot(VIH_POSITIVO$Age, VIH_NEGATIVO$Age)
+```
+
+**Interpretación:** 
+- Con respecto al summary, podemos observar que los pacientes que resultaron ser positivos tienen una edad menor que los negativos. Además, en ambos casos la media y la mediana son prácticamente iguales lo que sugiere que las distribuciones son simétricas.
+- Con los histogramos podemos identificar que el primer caso "positivos" su distribución si refleja una cierta simetría, en el segundo caso "negativos" dificilmente se puede notar la simetría de la distribución.
+- Respecto al boxplot, podemos observar que en el primer caso "positivos" hay tres valores atípicos y en el segundo caso solo hay uno. Importante observar que la mediana del segundo caso es casi idéntica que el tercer cuartil del primer caso. Esto pudiera dar un sustento de que sí hay diferencia en la media de las edades de ambas poblaciones.
+
+Verificamos los supuesto :
+  1. Las muestras sí son indpendientes (Positivo - Negativo)
+  2. Las muestras sí fueron seleccionadas a través de un muestreo aleatorio.
+  3. Tenemos más de 30 datos en ambas muestras. Aún así verificamos la normalidad de los datos.
+  
+Histogramas
+
+```{r}
+hist(VIH_POSITIVO$Age, probability = TRUE, col = "lightsalmon", main = "Histrograma Edad Positive", xlab = "Age", ylab = "Density", xlim = c(10,70))
+lines(density(VIH_POSITIVO$Age), col = "red", lwd = 3)
+curve(dnorm(x, mean = mean(VIH_POSITIVO$Age), sd = sd(VIH_POSITIVO$Age)), col = "blue", lwd = 3, add = T)
+
+hist(VIH_NEGATIVO$Age, probability = TRUE, col = "lightsalmon", main = "Histrograma Edad Negative", xlab = "Age", ylab = "Density", xlim = c(5,80))
+lines(density(VIH_NEGATIVO$Age), col = "red", lwd = 3)
+curve(dnorm(x, mean = mean(VIH_NEGATIVO$Age), sd = sd(VIH_NEGATIVO$Age)), col = "blue", lwd = 3, add = T)
+```
+**Interpretación:** Podemos observar de los gráficos que las curvas de densidad teórica y empírica coniciden muy bien, por lo que una distribución normal pudiera ajustarse bien a nuestros datos.
+
+QQ-Norm
+```{r}
+qqPlot(VIH_POSITIVO$Age, pch = 16, col = "red", cex = 0.5)
+qqPlot(VIH_NEGATIVO$Age, pch = 16, col = "red", cex = 0.5)
+```
+
+**Interpretación:**  
+  - En ambos casos se pueden observar que los puntos se van ajustando a la recta, sin embargo hay una variedad de puntos que salen de las bandas de confianza y algunos otros que pueden representar valores extremos o outliers.
+
+Prueba de Kolmogorov Smirnov ya que tenemos más de 50 datos en cada muestra
+
+```{r}
+library(nortest)
+lillie.test(VIH_POSITIVO$Age)
+#Decisión: Como p-value = 0.263 > 0.05 no se rechaza la hipótesis nula.
+#Conclusión: Los datos de la muestra siguen una distribución significativamente normal
+
+lillie.test(VIH_NEGATIVO$Age)
+#Decisión: Como p-value = 0.3104 > 0.05 no se rechaza la hipótesis nula.
+#Conclusión: Los datos de la muestra siguen una distribución significativamente normal
+```
+**Interpretación:**
+  - Como p-value = 0.263 > 0.05 no se rechaza la hipótesis nula de que las edades de los paciente que dieron Positivo a una prueba de VIH siguen una distribución aproximadamente normal.
+  - Como p-value = 0.3104 > 0.05 no se rechaza la hipótesis nula de que las edades de los paciente que dieron Negativo a una prueba de VIH siguen una distribución aproximadamente normal.
+
+Verificamos la homocedasticidad
+```{r}
+var.test(VIH_POSITIVO$Age, VIH_NEGATIVO$Age)
+#Decisión: Como p-value < 2.2e-16 < 0.05 Se rechaza la hipótesis nula en favor de la alternativa.
+#Conclusión: Las muestras no tienen varianzas iguales.
+```
+  - Decisión: Como p_value = 2.2e-16 > 0.05 No se rechaza la hipótesis nula de que los datos de ambas muestras tienen varianzas iguales. 
+  
+Planteamos el siguiente juego de hipótesis y procedemos a realizar el contraste de hipótesis. Población 1 son los que dieron Positivo Población 2 son los que dieron Negativo
+
+$$
+H_0:\mu_1=\mu_2\\
+H_1:\mu_1\neq \mu_2 \\
+\mu_1: \; edad \; promedio \; positivos \\
+\mu_2: \; edad \; promedio \; negativos
+$$
+
+Aplicamos el t.test
+```{r}
+t.test(x = VIH_POSITIVO$Age,
+       y = VIH_NEGATIVO$Age,
+       alternative = "two.sided",
+       mu = 0,
+       var.equal = FALSE,
+       conf.level = 0.95)
+#Decisión: Como p-value = 7.113e-08 < 0.05 se rechaza la hipótesis nula en favor de la alternativa.
+#Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que la edad promedio de las personas expuestas al VIH con diagnóstico NEGATIVO difiere de las que dieron POSITIVO.
+```
+**Conclusiones Finales:**
+  - Decisión: Como p_value = 7.113e-08 < 0.05 se rechaza la hipótesis nula en favor de la alternativa.
+  - Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que la edad promedio de las personas expuestas al VIH con diagnóstico NEGATIVO difiere de las que dieron POSITIVO.
+
+
+#Problema Primas de los asegurados (TAREA PRÁCTICA 7)
+
+Una compañía de seguros está interesada en determinar si hay una diferencia significativa en el monto promedio de la prima anual que pagan los asegurados según su sexo. Para realizar este análisis, la compañía recopiló datos aleatorios que se encuentran en la base de datos "Asegurados". Utiliza un nivel de confianza del 95% para este estudio.
+
+Importamos la base de datos
+
+```{r}
+Asegurados <- read_excel("C:/Users/ACER/Desktop/BUAP PRIMAVERA 2024/Análisis de Datos/R MARKDOWN/Prueba de Hipótesis Para dos Poblaciones/Medias/Asegurados.xlsx")
+```
+
+Verificamos los requisitos:
+  1. Las muestras son indpendientes (Hombre - Mujer)
+  2. La muestra fue seleccionada a través de un MAS
+  3. Tenemos más de 30 datos en ambas muestras.
+  
+```{r}
+table(Asegurados$sex) #662 Mujeres y 676 Hombres
+```
+
+  Filtramos la base de datos
+
+```{r}
+primas_hombres <- filter(Asegurados, sex == "male")
+primas_mujeres <- filter(Asegurados, sex == "female")
+```
+
+Histogramas
+
+```{r}
+hist(primas_hombres$charges, probability = TRUE, col = "lightsalmon", main = "Histrograma Charges Male", xlab = "Charges", ylab = "Density")
+lines(density(primas_hombres$charges), col = "red", lwd = 3)
+curve(dnorm(x, mean = mean(primas_hombres$charges), sd = sd(primas_hombres$charges)), col = "blue", lwd = 3, add = T)
+
+hist(primas_mujeres$charges, probability = TRUE, col = "lightsalmon", main = "Histrograma Charges Female", xlab = "Charges", ylab = "Density")
+lines(density(primas_mujeres$charges), col = "red", lwd = 3)
+curve(dnorm(x, mean = mean(primas_mujeres$charges), sd = sd(primas_mujeres$charges)), col = "blue", lwd = 3, add = T)
+```
+
+QQ-Norm
+
+```{r}
+qqPlot(primas_hombres$charges, pch = 16, col = "red", cex = 0.5)
+qqPlot(primas_mujeres$charges, pch = 16, col = "red", cex = 0.5)
+```
+
+Prueba de Kolmogorov Smirnov ya que tenemos más de 50 datos en cada muestra
+
+```{r}
+lillie.test(primas_hombres$charges)
+#Decisión: Como p-value = 0.9984 > 0.05 no se rechaza la hipótesis nula.
+#Conclusión: Los datos de la muestra siguen una distribución significativamente normal
+
+lillie.test(primas_mujeres$charges)
+#Decisión: Como p-value = 0.2543 > 0.05 no se rechaza la hipótesis nula.
+#Conclusión: Los datos de la muestra siguen una distribución significativamente normal
+```
+
+Verificamos la homocedasticidad
+
+```{r}
+var.test(primas_hombres$charges, primas_mujeres$charges)
+#Decisión: Como p-value = 0.6235 > 0.05 No se rechaza la hipótesis nula.
+#Conclusión: Las muestras tienen varianzas iguales.
+```
+
+Análisis Exploratorio
+```{r}
+# Crear el boxplot
+boxplot(Asegurados$charges ~ Asegurados$sex,
+        col = c("lightblue", "red"),
+        main = "Boxplot de Charges por Sexo",
+        xlab = "Sexo",
+        ylab = "Chrages")
+
+# Calcular cuartiles
+cuartiles <- tapply(Asegurados$charges, Asegurados$sex, quantile, probs = c(0.25, 0.5, 0.75))
+
+# Agregar los cuartiles al gráfico
+for (i in 1:length(cuartiles)) {
+  # Q1
+  text(x = i, 
+       y = cuartiles[[i]][1],  # Cuartil 1
+       labels = paste("Q1:", round(cuartiles[[i]][1], 1)), 
+       pos = 3, col = "black")
+  # Mediana (Q2)
+  text(x = i, 
+       y = cuartiles[[i]][2],  # Mediana
+       labels = paste("Q2:", round(cuartiles[[i]][2], 1)), 
+       pos = 3, col = "black")
+  # Q3
+  text(x = i, 
+       y = cuartiles[[i]][3],  # Cuartil 3
+       labels = paste("Q3:", round(cuartiles[[i]][3], 1)), 
+       pos = 3, col = "black")
+}
+#Se pueden observar que tienen las mismas medianas lo que supone que tendrán las mismas medias. También se pueden observar algunos valores atípicos, más en el caso de las mujeres. 
+```
+
+
+Planteamos el siguiente juego de hipótesis y procedemos a realizar el contraste de hipótesis.
+
+$$
+H_0:\mu_1=\mu_2\\
+H_1:\mu_1\neq \mu_2\\
+\mu_1: Media\;de\;los\;charges\;para\;mujeres\\
+\mu_2: Media\;de\;los\;charges\;para\;hombres
+$$
+
+```{r}
+t.test(x = primas_mujeres$charges,
+       y = primas_hombres$charges,
+       alternative = "two.sided",
+       mu = 0,
+       var.equal = TRUE,
+       conf.level = 0.95)
+#Decisión: Como p_value = 0.2854 > 0.05 no se rechaza la hipótesis nula.
+#Conclusión: No existe suficiente evidencia estadística para sustentar la aseveración de que existe diferencia en el monto promedio de las primas que pagan las mujeres respecto a la que pagan los hombres.
+```

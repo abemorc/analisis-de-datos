@@ -1,0 +1,341 @@
+---
+title: 'Sesión 18: Visualización de gráficos'
+author: "David Nexticapan Cortes"
+date: "2024-08-11"
+output: html_document
+---
+
+Cargamos librerías
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+library(moments)
+library(e1071)
+library(fitdistrplus)
+```
+
+Importamos la base de datos
+```{r}
+df_asegurados <- read_excel("expenses.xlsx")
+View(df_asegurados)
+```
+
+Realizamos un histograma de frecuencias para cada variable numérica
+```{r}
+# Analizamos el histograma de la variable Edad
+hist(x = df_asegurados$age,
+     col = "skyblue",
+     border = "darkblue",
+     main = "Histograma Edad Asegurados",
+     xlab = "Edad",
+     ylab = "Frecuencia",
+     labels = TRUE,
+     ylim = c(0,200))
+
+# Analizamos el histograma de la variable IMC
+hist(x = df_asegurados$bmi,
+     col = "skyblue",
+     border = "darkblue",
+     main = "Histograma IMC Asegurados",
+     xlab = "IMC",
+     ylab = "Frecuencia",
+     labels = TRUE,
+     ylim = c(0,420))
+
+# Analizamos el histograma de la variable Cargos por Prima
+hist(x = df_asegurados$charges,
+     col = "skyblue",
+     border = "darkblue",
+     main = "Histograma Cargos Asegurados",
+     xlab = "Cargos",
+     ylab = "Frecuencia",
+     labels = TRUE,
+     ylim = c(0,400))
+```
+
+Forma alternativa utilziando la librería ggplot2
+![](Reglas Bins.jpg)
+
+```{r}
+k_sturges <- nclass.Sturges(df_asegurados$age)
+k_scott <- nclass.scott(df_asegurados$age)
+k_freedman <- nclass.FD(df_asegurados$age)
+
+ggplot(data = df_asegurados, mapping = aes(x = age)) +
+  geom_histogram(fill = "skyblue", color = "darkblue", bins = k_scott) +
+  labs(title = "Distribución Frecuencias Edad", x = "Edad", y = "Frecuencia") +
+  theme_dark()
+
+k_IMC <- nclass.scott(df_asegurados$bmi)
+ggplot(df_asegurados, aes(x = bmi)) +
+  geom_histogram(fill = "skyblue", color = "darkblue", bins = k_IMC) +
+  labs(title = "Distribución Frecuencias IMC", x = "IMC", y = "Frecuencia") +
+  theme_minimal()
+
+k_cargos <- nclass.FD(df_asegurados$charges)
+ggplot(df_asegurados, aes(x = charges)) +
+  geom_histogram(fill = "skyblue", color = "darkblue", bins = k_cargos) +
+  labs(title = "Distribución Frecuencias Cargos", x = "Cargos", y = "Frecuencia") +
+  theme_light()
+```
+
+# Asimetría
+
+La **asimetría** (o sesgo) es una medida que indica qué tan simétrica es la distribución de los datos con respecto a su media.
+
+Formalmente, decimos que una distribución de frecuencias es simétrica si la media $\bar{x}$ es igual a la mediana $\bar{M_e}$. Esto significa que, en cualquier otro caso, la distribución es asimétrica.
+
+Cuando $\bar{M_e} < \bar{x}$ decimos que la distribución es Asimétrica a la derecha, Asimétrica de cola derecha o que tiene Asimetría positiva.
+
+Cuando $\bar{M_e} > \bar{x}$ decimos que la distribución es Asimétrica a la izquierda, Asimétrica de cola izquierda o que tiene Asimetría Negativa.
+
+Para los tipos de línea, utilizar la siguiente referencia:
+![](Tipos de Linea.jpg)
+Trabajemos con una distribución normal para ejemplificar la asimetría de una distribución.
+```{r}
+set.seed(123)
+salarios <- round(rnorm(n = 1000, mean = 15000, sd = 2000),2)
+df_salarios <- data.frame(Salarios = salarios)
+media_salarial <- mean(salarios)
+mediana_salarial <- median(salarios)
+
+k_salarios <- nclass.scott(df_salarios$Salarios)
+ggplot(df_salarios, aes(x = Salarios)) +
+  geom_histogram(fill = "skyblue", color = "darkblue", bins = k_salarios) +
+  geom_vline(aes(xintercept = media_salarial), color = "red", linetype = "dashed", size = 1) +
+  geom_vline(aes(xintercept = mediana_salarial), color = "blue", linetype = "dotted", size = 1) +
+  labs(title = "Distribución Frecuencias Salarios", x = "Salarios", y = "Frecuencia") +
+  theme_gray()
+# Conclusión: Al observar las lineas en el histograma de frecuencias podemos concluir que se tiene una simetría aproximada.
+```
+
+Trabajamos con una distribución Exponencial para ejemplificar la asimetría a la derecha.
+```{r}
+set.seed(123)
+tiempos <- round(rexp(n = 1000, rate = 1/10),2)
+df_tiempos <- data.frame(Tiempos = tiempos)
+media_tiempo <- mean(tiempos)
+mediana_tiempo <- median(tiempos)
+
+k_tiempos <- nclass.FD(df_tiempos$Tiempos)
+ggplot(df_tiempos, aes(x = Tiempos)) +
+  geom_histogram(fill = "skyblue", color = "darkblue", bins = k_tiempos) +
+  geom_vline(aes(xintercept = media_tiempo), color = "red", linetype = "dashed", size = 1) +
+  geom_vline(aes(xintercept = mediana_tiempo), color = "blue", linetype = "dotted", size = 1) +
+  labs(title = "Distribución Frecuencias Tiempos", x = "Tiempos", y = "Frecuencia") +
+  theme_gray()
+# Conclusión: Al observar las lineas en el histograma de frecuencias podemos concluir como la mediana es menor que la media, se tiene una asimetría a la derecha.
+```
+
+Trabajamos con una distribución Weibull con ciertos parámetros para ejemplificar la asimétrica a la izquierda
+```{r}
+set.seed(123)
+datos_weibull <- round(rweibull(n = 1000, shape = 5, scale = 2),2)
+df_weibull <- data.frame(Valores = datos_weibull)
+media_weibull <- mean(datos_weibull)
+mediana_weibull <- median(datos_weibull)
+
+k_weibull <- nclass.scott(df_weibull$Valores)
+ggplot(df_weibull, aes(x = Valores)) +
+  geom_histogram(fill = "skyblue", color = "darkblue", bins = k_weibull) +
+  geom_vline(aes(xintercept = media_weibull), color = "red", linetype = "dashed", size = 1) +
+  geom_vline(aes(xintercept = mediana_weibull), color = "blue", linetype = "dotted", size = 1) +
+  labs(title = "Distribución Frecuencias Weibull", x = "Valores", y = "Frecuencia") +
+  theme_classic()
+```
+
+Verificamos la Asimetría de las variables numéricas de nuestra base de datos de los Asegurados.
+```{r}
+# Tarea, Realizar los gráficos (histogramas) para las arreglos de age, bmi, charges. 
+# Verificar gráficamente su asimetría y concluir si es simétrica, o asimétrica a la derecha o asimétrica a la izquierda.
+```
+
+El **coeficiente de asimetría** también conocido como el coeficiente de asimetría de Fisher-Pearson, se basa en el tercer momento central:
+
+$$
+\mu_3 = E[(X-\mu)^3]
+$$
+Se utiliza $\sigma^3$ para obtener la asimetría estandarizada.
+
+$$
+\frac{\mathbb{E}[(X - \mu)^3]}{\sigma^3} = \mathbb{E} \left[ \left( \frac{X - \mu}{\sigma} \right)^3 \right] = \frac{\mu_3}{\sigma^3}
+$$
+
+  1. Si $asimetría = 0$ entonces la distribución es simétrica.
+  2. Si $asimetría > 0$ entonces la distribución es asimétrica a la derecha.
+  3. Si $asimetría < 0$ entonces la distribución es asimétrica a la izquierda.
+  
+```{r}
+skewness(df_asegurados$age) # La distirbución de los datos de la edad es simétrica.
+skewness(df_asegurados$bmi) # La distribución de los datos el IMC es asimétrica a la derecha. 
+skewness(df_asegurados$charges) # La distribución de los cargos es asimétrica a la derecha. 
+```
+
+# Curtosis
+
+La **curtosis** es una medida estadística que se utiliza para evaluar la forma de la distribución de un conjunto de datos y, específicamente, para medir cuán “afilada” o “achatada” es la distribución en comparación con una distribución normal. Indica la concentración de valores alrededor de la media y la presencia de valores extremos en la distribución de datos.
+
+![](curtosis.jpg)
+
+**Distribución leptocúrtica:** El coeficiente de curtosis es positivo para una distribución leptocúrtica. Presenta un elevado grado de concentración alrededor de los valores centrales de la variable.Las colas de la distribución son más pesadas, lo que significa que los valores extremos son más probables.
+
+**Distribución mesocúrtica:** Presenta un grado de concentración medio alrededor de los valores centrales de la variable (el mismo que presenta una distribución normal). Los valores extremos o atípicos son menos comunes en este tipo de distribución.La curtosis se aproxima a cero para una distribución mesocúrtica.
+
+**Distribución platicúrtica:** Presenta un reducido grado de concentración alrededor de los valores centrales de la variable y sus valores están más dispersos. Tienen una forma achatada con un pico más bajo en el centro y colas menos pronunciadas. El coeficiente de curtosis es negativo para una distribución platicúrtica.
+
+El cuarto momento central se usa para medir la curtosis, que refleja si las colas de una distribución son más pesadas o ligeras que una distribución normal.
+
+$$
+\mu_4 = E[(X-\mu)^4]
+$$
+Se utiliza $\sigma^4$ para obtener la curtosis estandarizada.
+
+$$
+\frac{\mathbb{E}[(X - \mu)^4]}{\sigma^4} = \mathbb{E} \left[ \left( \frac{X - \mu}{\sigma} \right)^4 \right] = \frac{\mu_4}{\sigma^4}
+$$
+![](type_curtosis.jpg)
+
+```{r}
+e1071::kurtosis(df_asegurados$age, type = 2) # La forma de esta distribución es platicúrtica.
+kurtosis(df_asegurados$age) - 3
+kurtosis(df_asegurados$bmi) - 3 # La forma de esta distribución es mesocúrtica.
+kurtosis(df_asegurados$charges) - 3 # La forma de esta distribución es leptocúrtica. 
+```
+
+
+#Curvas de densidad
+
+La curva de densidad es una estimación suave de la distribución de probabilidad de un conjunto de datos continuos. A diferencia de un histograma, que agrupa los datos en intervalos y cuenta la frecuencia de ocurrencia dentro de cada intervalo, la curva de densidad proporciona una representación continua de cómo se distribuyen los datos a lo largo de su rango.
+
+La estimación suave se refiere a una técnica utilizada en estadística para crear una representación continua y sin saltos de la distribución de datos, especialmente cuando esos datos están agrupados en intervalos o contienen ruido (variaciones aleatorias).
+
+```{r}
+# Uniforme
+# Estimamos los parámetros para la distribución uniforme
+a <- min(df_asegurados$age)
+b <- max(df_asegurados$age)
+dunif()
+  
+k_scott <- nclass.scott(df_asegurados$age)
+ggplot(data = df_asegurados, mapping = aes(x = age)) +
+  geom_histogram(aes(y = after_stat(density)), fill = "skyblue", color = "darkblue", bins = k_scott) +
+  geom_density(color = "red", linewidth = 1.5) +
+  stat_function(fun = dunif, args = list(min = a, max = b), color = "green2", linewidth = 1.5) +
+  labs(title = "Distribución Frecuencias Edad", x = "Edad", y = "Frecuencia") +
+  theme_dark()
+
+# Normal
+k_IMC <- nclass.scott(df_asegurados$bmi)
+ajuste_normal <- fitdist(df_asegurados$bmi, "norm", method = "mle")
+summary(ajuste_normal)
+ggplot(df_asegurados, aes(x = bmi)) +
+  geom_histogram(aes(y = after_stat(density)),fill = "skyblue", color = "darkblue", bins = k_IMC) +
+  geom_density(color = "red", linewidth = 1.5) +
+  stat_function(fun = dnorm , args = list(mean = 30.663397, sd = 6.095908), color = "green2", linewidth = 1.5) +
+  labs(title = "Distribución Frecuencias IMC", x = "IMC", y = "Frecuencia") +
+  theme_minimal()
+
+# Exponencial y Weibull
+k_cargos <- nclass.FD(df_asegurados$charges)
+ajuste_expo <- fitdist(df_asegurados$charges, "exp", method = "mle")
+ajuste_weibull <- fitdist(df_asegurados$charges, "weibull", method = "mle")
+summary(ajuste_expo)
+summary(ajuste_weibull)
+
+ggplot(df_asegurados, aes(x = charges)) +
+  geom_histogram(aes(y = after_stat(density)),fill = "skyblue", color = "darkblue", bins = k_cargos) +
+  geom_density(color = "red", linewidth = 1.5) + 
+  stat_function(fun = dexp, args = list(rate = 7.535555e-05), color = "green2", linewidth = 1.5) +
+  stat_function(fun = dweibull, args = list(shape = 1.175706, scale = 14103.795524), color = "gold", linewidth = 1.5) +
+  labs(title = "Distribución Frecuencias Cargos", x = "Cargos", y = "Frecuencia") +
+  theme_light()
+```
+
+## Cuartiles
+
+Existen además de la media, mediana y moda otras medidas de posición, estas consisten en determinar la ubicación de los valores que dividen un conjunto de observaciones en partes iguales. 
+
+Los cuartiles dividen a un conjunto de observaciones en cuatro partes iguales de en un conjunto de valores ordenados de menor a mayor.
+
+El primer cuartil, que se representa mediante Q1, es el valor bajo el cual se presenta el 25% de las observaciones, y el tercer cuartil, simbolizado por Q3, es el valor bajo el cual se presenta el 75% de las observaciones. El segundo cuartil Q2 es igual al valor que se representa el 50% es decir igua a la mediana.
+
+## Diagrama de Caja y Bigotes
+
+El diagrama de caja es una representación gráfica basada en cuartiles que ayuda a presentar un conjunto de datos. Para construir un diagrama de caja solo se necesitan estos estadísticos: valor mínimo, Q1 (primer cuartil), mediana o Q2 (segundo cuartil), Q3 (tercer cuartil) y valor máximo.
+
+![Gráfico de cuartiles](Boxplot-Esquema.jpg)
+
+Existe otro significado del diagrama, se pueden ver cuales son valores atípicos, extraños, muy altos o muy bajos, o outliers. Un dato atípico se trata de un valor que no concuerda con el resto de los datos.
+
+Calculamos los cuartiles de la edad de los asegurados:
+
+```{r}
+
+```
+
+Realizamos el diagrama de caja y bigotes de la edad de los asegurados:
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+
+Calculamos los cuartiles de la edad de los asegurados por sexo.
+```{r}
+
+```
+
+Realizamos un diagrama de cajas y bigotes de la edad de los asegurados por sexo
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+# Diagramas de Dispersión
+
+Los diagramas de dispersión se usan para mostrar la relación entre dos variables continuas (aunque también se suele representar como la relación de una variable continua y una categórica), cada observación se representa como un punto representado en coordenadas cartesianas.
+
+Importamos la base de datos
+```{r}
+
+```
+
+```{r}
+
+```
+
+Podemos modificar la forma de los puntos.
+![Forma Puntos](Shape.jpg)
+```{r}
+
+```
+
+Podemos agrupar los puntos utilizando alguna variable categórica
+```{r}
+
+```
+
+```{r}
+
+```
+
+Podemos añadir información como por ejemplo, títulos en los ejes:
+```{r}
+
+```
+
+Podemos agregar la linea de regresión lineal.
+
+```{r}
+
+```

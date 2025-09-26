@@ -1,0 +1,370 @@
+---
+title: "Árboles de decisión"
+author: "David Nexticapan Cortes"
+date: "2024-11-18"
+output: html_document
+---
+
+Librerías a utilizar
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(rpart)
+library(rpart.plot)
+library(tidyr)
+library(caret) # Para la matriz de confusión.
+library(caTools)
+```
+
+Importamos el dataset
+```{r}
+titanic <- read_excel("titanic.xlsx")
+head(titanic)
+```
+
+  - PassengerId: Identificador único de cada pasajero. Es un número consecutivo.
+  
+  - Survived: Indicador de supervivencia del pasajero: 0 = No sobrevivió, 1 = Sobrevivió.
+  
+  - Pclass: Clase del boleto del pasajero: 1 = Primera clase, 2 = Segunda clase, 3 = Tercera clase. Es una variable ordinal que representa nivel socioeconómico.
+  
+  - Name: Nombre completo del pasajero.
+  
+  - Sex:	Sexo del pasajero: male o female.
+  
+  - Age: Edad del pasajero (en años).
+  
+  - SibSp: Número de hermanos/esposos a bordo.
+  
+  - Parch: Número de padres/hijos (parents/children) a bordo.
+  
+  - Ticket: Número del boleto. Puede tener letras y números, dependiendo del tipo de emisión. No sigue una codificación uniforme.
+  
+  - Fare: Precio que pagó por el boleto (en libras esterlinas). Variable continua.
+  
+  - Cabin: Número de cabina asignada. Puede contener letras (indican sección del barco). Muchos valores están ausentes.
+  
+  - Embarked: Puerto de embarque
+
+**Análisis Exploratorio**
+
+Seleccionamos variables relevantes para el modelo.
+```{r}
+names(titanic)
+titanic <- select(titanic, Survived, Pclass, Sex, Age, SibSp, Parch, Fare, Embarked)
+head(titanic)
+```
+
+Verificamos la clase de cada variable
+```{r}
+glimpse(titanic)
+```
+
+Trabajamos las variables factor
+```{r}
+titanic$Survived <- factor(titanic$Survived, levels = c(0,1), labels = c("Muere","Vive"))
+titanic$Pclass <- factor(titanic$Pclass, levels = c(1,2,3), labels = c("Primera Clase","Segunda Clase", "Tercera Clase"))
+titanic$Sex <- factor(titanic$Sex)
+titanic$Embarked <- factor(titanic$Embarked)
+```
+
+Verificamos la presencia de missing values
+```{r}
+colSums(is.na(titanic)) # Tenemos 86 observaciones sin edad y 1 sin precio que pagó por el boleto.
+```
+
+
+Limpiamos la base de datos 
+```{r}
+titanic <- drop_na(titanic)
+```
+
+**Aplicación del Modelo**
+
+Dividir la base de datos en entrenamiento y prueba
+```{r}
+set.seed(123)
+barajeado <- slice_sample(titanic, prop = 1)
+split <- sample.split(barajeado$Survived, SplitRatio = 0.8) # Vector lógico 
+titanic_train <- subset(barajeado, split == TRUE)
+titanic_test <- subset(barajeado, split == FALSE)
+```
+
+Entrenamiento del árbol con el índice de Gini
+```{r}
+# Entrenamiento del árbol con índice Gini
+modelo <- rpart(Survived ~ ., data = titanic_train, method = "class", parms = list(split = "gini"))
+```
+
+Visualizamos el árbol
+
+  extra = 104 es una opción que muestra tanto la probabilidad de cada clase como el número de observaciones en cada nodo, lo cual es útil para entender la distribución de los datos en cada parte del árbol. También muestra el número de observaciones que llegan a cada nodo y las probabilidades de las clases en esos nodos.
+  
+```{r}
+rpart.plot(modelo, type = 2, extra = 104)
+```
+
+Realizamos nuestras predicciones
+```{r}
+y_pred <- predict(modelo, newdata = titanic_test, type = "class")
+y_pred
+```
+
+Generamos la matriz de confusión
+```{r}
+y_real <- titanic_test$Survived
+
+conf_matrix <- confusionMatrix(data = y_pred, reference = y_real, positive = "Vive")
+print(conf_matrix$table)
+```
+
+  - Verdaderos negativos (TN = 80): El modelo clasificó correctamente a 80 pasajeros como no sobrevivientes, y efectivamente no sobrevivieron.
+  
+  - Verdaderos positivos (TP = 41): El modelo clasificó correctamente a 41 pasajeros como sobrevivientes, y efectivamente sobrevivieron.
+  
+  - Falsos negativos (FN = 17): El modelo clasificó incorrectamente a 17 pasajeros como no sobrevivientes, cuando en realidad sí sobrevivieron.
+  
+  - Falsos positivos (FP = 5): El modelo clasificó incorrectamente a 5 pasajeros como sobrevivientes, cuando en realidad no sobrevivieron.
+
+Extraemos las métricas
+```{r}
+# Extraer métricas
+accuracy <- conf_matrix$overall["Accuracy"]
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+f1 <- conf_matrix$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  - Accuracy (Exactitud = 0.8461538): El modelo acertó en aproximadamente el 76.92% de las predicciones totales, es decir, clasificó correctamente tanto a sobrevivientes como a no sobrevivientes en la mayoría de los casos.
+  
+  - Precision (Precisión = 0.8913043): De todas las personas que el modelo predijo como sobrevivientes, el 83.78% realmente sobrevivió. Es decir, cometió pocos errores al decir que alguien sobrevivió.
+  
+  - Recall (Sensibilidad = 0.7068966): El modelo fue capaz de identificar correctamente al 53.45% de los sobrevivientes reales. Esto indica que se le escaparon bastantes verdaderos sobrevivientes (falsos negativos).
+  
+  - F1 Score = 0.7884615 : Indica que, aunque el modelo es bastante preciso cuando predice que alguien sobrevivió, no logra encontrar a todos los sobrevivientes reales. Es un desempeño intermedio.
+  
+#**Modelo 2**
+
+```{r}
+modelo2 <- rpart(Survived ~ ., data = titanic_train, method = "class", parms = list(split = "gini"), control = rpart.control(maxdepth = 3))
+```
+
+El argumento control en la función rpart se usa para proporcionar una lista de parámetros que controlan la complejidad del árbol y otros aspectos del proceso de ajuste del modelo. Estos parámetros se establecen usando la función rpart.control().
+  
+  - maxdepth: establece la profundidad máxima de cualquier nodo en el árbol final
+  
+  - minsplit: El número mínimo de observaciones que deben existir en un nodo antes de intentar una división.
+  
+  - cp: El parámetro de complejidad. Su función es determinar qué tan "buena" debe ser una división para que el algoritmo rpart decida hacerla.
+  
+  - xval: El número de validaciones cruzadas a realizar.
+
+Visualizamos el árbol
+```{r}
+rpart.plot(modelo2, type = 2, extra = 104)
+```
+
+Realizamos nuestras predicciones
+```{r}
+y_pred <- predict(modelo2, newdata = titanic_test, type = "class")
+y_pred
+```
+
+Generamos la matriz de confusión
+```{r}
+y_real <- titanic_test$Survived
+
+conf_matrix <- confusionMatrix(data = y_pred, reference = y_real, positive = "Vive")
+print(conf_matrix$table)
+```
+
+  - Verdaderos negativos (TN = 77): El modelo clasificó correctamente a 77 pasajeros como no sobrevivientes, y efectivamente no sobrevivieron.
+  
+  - Verdaderos positivos (TP = 46): El modelo clasificó correctamente a 46 pasajeros como sobrevivientes, y efectivamente sobrevivieron.
+  
+  - Falsos negativos (FN = 12): El modelo clasificó incorrectamente a 12 pasajeros como no sobrevivientes, cuando en realidad sí sobrevivieron.
+  
+  - Falsos positivos (FP = 8): El modelo clasificó incorrectamente a 8 pasajeros como sobrevivientes, cuando en realidad no sobrevivieron.
+
+Extraemos las métricas
+```{r}
+# Extraer métricas
+accuracy <- conf_matrix$overall["Accuracy"]
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+f1 <- conf_matrix$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  - Accuracy (Exactitud = 0.8601399): El modelo acertó en aproximadamente el 79.02% de las predicciones totales, es decir, clasificó correctamente tanto a sobrevivientes como a no sobrevivientes en la mayoría de los casos.
+  
+  - Precision (Precisión = 0.8518519): De todas las personas que el modelo predijo como sobrevivientes, el 81.82% realmente sobrevivió. Es decir, cometió pocos errores al decir que alguien sobrevivió.
+  
+  - Recall (Sensibilidad = 0.7931034): El modelo fue capaz de identificar correctamente al 62.07% de los sobrevivientes reales. Esto indica que se le escaparon bastantes verdaderos sobrevivientes (falsos negativos).
+  
+  - F1 Score = 0.8214286: Indica que, aunque no es perfecto, el modelo es confiable para identificar sobrevivientes.
+
+#**Modelo 3**
+
+```{r}
+modelo3 <- rpart(Survived ~ ., data = titanic_train, method = "class", parms = list(split = "information"))
+```
+
+Visualizamos el árbol
+```{r}
+rpart.plot(modelo3, type = 2, extra = 104)
+```
+
+Realizamos nuestras predicciones
+```{r}
+y_pred <- predict(modelo3, newdata = titanic_test, type = "class")
+y_pred
+```
+
+Generamos la matriz de confusión
+```{r}
+y_real <- titanic_test$Survived
+
+conf_matrix <- confusionMatrix(data = y_pred, reference = y_real, positive = "Vive")
+print(conf_matrix$table)
+```
+
+  - Verdaderos negativos (TN = 80): El modelo clasificó correctamente a 80 pasajeros como no sobrevivientes, y efectivamente no sobrevivieron.
+  
+  - Verdaderos positivos (TP = 41): El modelo clasificó correctamente a 28 pasajeros como sobrevivientes, y efectivamente sobrevivieron.
+  
+  - Falsos negativos (FN = 17): El modelo clasificó incorrectamente a 30 pasajeros como no sobrevivientes, cuando en realidad sí sobrevivieron.
+  
+  - Falsos positivos (FP = 5): El modelo clasificó incorrectamente a 5 pasajeros como sobrevivientes, cuando en realidad no sobrevivieron.
+
+Extraemos las métricas
+```{r}
+# Extraer métricas
+accuracy <- conf_matrix$overall["Accuracy"]
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+f1 <- conf_matrix$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  - Accuracy (Exactitud = 0.7552): El modelo acertó en aproximadamente el 75.52% de las predicciones totales, es decir, clasificó correctamente tanto a sobrevivientes como a no sobrevivientes en la mayoría de los casos.
+  
+  - Precision (Precisión = 0.8485): De todas las personas que el modelo predijo como sobrevivientes, el 84.85% realmente sobrevivió. Es decir, cometió pocos errores al decir que alguien sobrevivió.
+  
+  - Recall (Sensibilidad = 0.4828): El modelo fue capaz de identificar correctamente al 48.28% de los sobrevivientes reales. Esto indica que se le escaparon bastantes verdaderos sobrevivientes (falsos negativos).
+  
+  - F1 Score = 0.6154: Indica que, aunque el modelo es bastante preciso cuando predice que alguien sobrevivió, no logra encontrar a todos los sobrevivientes reales. Es un desempeño intermedio.
+  
+  Nota: ELl modelo 3 es exactamente el mismo que el modelo 1
+  
+#**Modelo 4**
+
+Ajustamos el modelo con un cp bajo y activamos validación cruzada
+```{r}
+modelo4 <- rpart(Survived ~ ., data = titanic_train, method = "class", control = rpart.control(cp = 0.001, xval = 10))
+```
+
+Revisamos la tabla de complejidad del modelo.
+```{r}
+printcp(modelo4)
+```
+
+  -  El mejor cp es el que tiene el error más bajo, en este caso 0.001.
+
+Visualizamos el árbol
+```{r}
+rpart.plot(modelo4, type = 2, extra = 104)
+```
+
+Podamos el árbol al mejor cp 
+```{r}
+mejor_cp <- modelo4$cptable[which.min(modelo4$cptable[, "xerror"]), "CP"]
+modelo4_podado <- prune(modelo4, cp = mejor_cp)
+```
+
+Visualizamos el árbol despúes de la poda
+```{r}
+rpart.plot(modelo4_podado, type = 2, extra = 104)
+```
+
+Realizamos nuestras predicciones
+```{r}
+y_pred <- predict(modelo4_podado, newdata = titanic_test, type = "class")
+y_pred
+```
+
+Generamos la matriz de confusión
+```{r}
+y_real <- titanic_test$Survived
+
+conf_matrix <- confusionMatrix(data = y_pred, reference = y_real, positive = "Vive")
+print(conf_matrix$table)
+```
+
+  - Verdaderos negativos (TN = 80): El modelo clasificó correctamente a 73 pasajeros como no sobrevivientes, y efectivamente no sobrevivieron.
+  
+  - Verdaderos positivos (TP = 41): El modelo clasificó correctamente a 35 pasajeros como sobrevivientes, y efectivamente sobrevivieron.
+  
+  - Falsos negativos (FN = 17): El modelo clasificó incorrectamente 23 pasajeros como no sobrevivientes, cuando en realidad sí sobrevivieron.
+  
+  - Falsos positivos (FP = 5): El modelo clasificó incorrectamente a 12 pasajeros como sobrevivientes, cuando en realidad no sobrevivieron.
+
+Extraemos las métricas
+```{r}
+# Extraer métricas
+accuracy <- conf_matrix$overall["Accuracy"]
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+f1 <- conf_matrix$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  - Accuracy (Exactitud = 0.8461538): El modelo acertó en aproximadamente el 75.52% de las predicciones totales, es decir, clasificó correctamente tanto a sobrevivientes como a no sobrevivientes en la mayoría de los casos.
+  
+  - Precision (Precisión = 0.8913043 ): De todas las personas que el modelo predijo como sobrevivientes, el 74.47% realmente sobrevivió. Es decir, cometió pocos errores al decir que alguien sobrevivió.
+  
+  - Recall (Sensibilidad = 0.7068966 ): El modelo fue capaz de identificar correctamente al 60.34% de los sobrevivientes reales. Esto indica que se le escaparon bastantes verdaderos sobrevivientes (falsos negativos).
+  
+  - F1 Score = 0.7884615 : Indica que, aunque el modelo es bastante preciso cuando predice que alguien sobrevivió, no logra encontrar a todos los sobrevivientes reales. Es un desempeño intermedio.
+
+
+#**Comparación de Modelos**
+
+$$
+\begin{array}{|l|c|c|c|}
+\hline
+\textbf{Métrica} & \textbf{Modelo 1} & \textbf{Modelo 2} & \textbf{Modelo 3} & \textbf{Modelo 4} \\
+\hline
+\text{Verdaderos Negativos (TN)} & 79 & 77 & \mathbf{80} & 73 \\
+\text{Falsos Positivos (FP)}     & 6 & 8 & \mathbf{5} & 12 \\
+\text{Falsos Negativos (FN)}     & 27 & \mathbf{22} & 30 & 23 \\
+\text{Verdaderos Positivos (TP)} & 31 & \mathbf{36} & 28 & 35 \\
+\text{Exactitud (Accuracy)}      & 76.92\% & \mathbf{79.02\%} & 75.52\% & 75.52\%\\
+\text{Precisión (Precision)}     & 83.79\% & 81.82\% & \mathbf{84.85\%} & 74.47\%\\
+\text{Sensibilidad (Recall)}     & 53.45\% & 60.07\% & 48.28\% & \mathbf{60.34\%}\\
+\text{F1 Score}                  & 65.26\% & \mathbf{70.59\%} & 61.54\% & 66.67\%\\
+\hline
+\end{array}
+$$
+  

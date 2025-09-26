@@ -1,0 +1,125 @@
+---
+title: "Sesión 21"
+author: "David Nexticapan Cortes"
+date: "2025-03-13"
+output: html_document
+---
+
+1. La aseveración es que la proporción de adultos que fumaron un cigarrillo la semana pasada es menor que 0.25, y los estadísticos de muestra incluyen 𝑛=1018 sujetos, de los cuales 224 dicen que fumaron un cigarrillo la semana pasada. 
+
+Planteamos el juego de hipótesis
+
+$$
+H_0: p \geq 0.25\\
+H_1: p < 0.25
+$$
+
+```{r}
+estadistico_proporciones <- function(p_hat, p, n){
+  z <- round((p_hat - p) / sqrt(p * (1 - p) / n),2)
+  return(z)
+}
+```
+
+```{r}
+estadistico_proporciones(p_hat = 224/1018, p = 0.25, n = 1018)
+```
+
+2. La aseveración es que la mayoría de las demandas por negligencia se retiran o se rechazan, y una muestra aleatoria de 500 demandas incluye 349 que fueron retiradas o rechazadas.
+
+$$
+H_0: p \leq 0.50\\
+H_1: p > 0.50
+$$
+
+```{r}
+estadistico_proporciones(p_hat = 349/500, p = 0.50, n = 500)
+```
+
+# **Valor crítico**
+
+Actividad: Con un nivel de significancia de 𝛼=0.05, calcule los valores 𝑧 críticos para cada una de las siguientes hipótesis alternativas.
+
+Caso 1: 𝑝≠0.5 (de manera que la región crítica está en ambas colas de la distribución normal)
+
+```{r}
+# dnorm
+# pnorm
+# qnorm
+# rnorm
+alpha <- 0.05
+critico_izq <- round(qnorm(p = alpha /2, lower.tail = T),4)
+critico_der <- round(qnorm(p = 1 - alpha /2, lower.tail = T),4)
+
+# Graficar la curva de densidad de la normal estándar.
+curve(dnorm(x), from = -3.5, to = 3.5, col = "blue", lwd = 2)
+
+# Colocamos lineas verticales en la posición de los valores críticos
+abline(v = critico_izq, col = "red", lwd = 2, lty = 2)
+abline(v = critico_der, col = "red", lwd = 2, lty = 2)
+
+# Rellenamos el área de la cola izquierda 
+x_valores <- seq(-3.5, critico_izq, length.out = 100)
+y_valores <- dnorm(x_valores)
+polygon(c(-3.5, x_valores, critico_izq), c(0, y_valores, 0), col = "lightblue")
+
+# Rellenar el área de la cola derecha
+x_valores <- seq(critico_der, 3.5, length.out = 100)
+y_valores <- dnorm(x_valores)
+polygon(c(critico_der, x_valores, 3.5), c(0, y_valores, 0), col = "lightblue")
+
+# Colocamos el texto del valor de los valores críticos
+text(x = critico_izq, y = 0.02, labels = critico_izq, pos = 4)
+text(x = critico_der, y = 0.02, labels = critico_der, pos = 2)
+```
+
+Caso 2: 𝑝<0.5 (de manera que la región crítica está en la cola izquierda de la distribución normal)
+
+```{r}
+v_critico <- round(qnorm(p = alpha, lower.tail = T),4)
+v_critico
+```
+
+Caso 3: 𝑝>0.5 (de manera que la región crítica está en la cola derecha de la distribución normal)
+
+```{r}
+v_critico <- round(qnorm(p = 1 - alpha, lower.tail = T),4)
+v_critico
+```
+
+# **p_value**
+
+Actividad: Determine si las condiciones planteadas dan por resultado una prueba de cola derecha, de cola izquierda o de dos colas; después utilice la imagen adjunta para calcular el valor P, luego saque una conclusión acerca de la hipótesis nula.
+
+Caso 1: Se utiliza un nivel de significancia de 𝛼=0.05 para probar la aseveración de que 𝑝>0.25. Considera que los datos muestrales dan por resultado un estadístico de prueba de 𝑧=1.18.
+
+```{r}
+# Tipo de prueba: Cola derecha
+p_value <- pnorm(q = 1.18, lower.tail = F)
+p_value
+```
+
+Caso 2: Se utiliza un nivel de significancia de 𝛼=0.05 para probar la aseveración de que 𝑝≠0.25, y los datos muestrales dan por resultado un estadístico de prueba de 𝑧=2.34.
+
+```{r}
+# Tipo de prueba: Dos colas
+p_value <- 2 * pnorm(q = 2.34, lower.tail = F)
+p_value
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

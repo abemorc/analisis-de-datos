@@ -1,0 +1,180 @@
+---
+title: 'Sesión 30: ANOVA Parte 2'
+author: "David Nexticapan Cortes"
+date: "2024-10-20"
+output: html_document
+---
+
+Cargamos librerías
+```{r, warning=FALSE, message=FALSE}
+library(readxl)
+library(dplyr)
+library(nortest)
+```
+
+
+## **Problema de la Presión Sistólica**
+
+Una clínica especializada en enfermedades crónicas ha recopilado datos sobre pacientes que han sido diagnosticados con distintas enfermedades, como hipertensión, diabetes, enfermedades cardíacas, cáncer, y también pacientes considerados sanos.
+
+Los datos incluyen información sobre la edad, género, altura, peso, presión arterial sistólica y diastólica, y la categoría de enfermedad de cada paciente.
+
+Se desea evaluar si existen diferencias estadísticamente significativas en los niveles de presión arterial sistólica entre las distintas categorías de enfermedad.
+
+Cargamos la base de datos
+```{r}
+enfermedades <- read_excel("1- medical_records(project 5).xlsx")
+head(enfermedades)
+```
+
+**Análisis Exploratorio**
+```{r}
+colSums(is.na(enfermedades)) # No hay presencia de valores NA
+```
+
+```{r}
+by(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category, summary)
+```
+
+```{r}
+table(enfermedades$Disease_Category)
+```
+
+```{r}
+nombres <- unique(enfermedades$Disease_Category)
+datos <- split(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category)
+
+par(mfrow = c(3, 3))  # 2 filas, 2 columnas
+
+for (i in 1:7){
+  valores <- datos[[i]]
+  hist(valores, prob = T, col = "skyblue", main = nombres[i], breaks = nclass.Sturges(valores))
+  lines(density(valores), col = "blue4", lwd = 3)
+}
+```
+
+```{r}
+boxplot(enfermedades$Blood_Pressure_Systolic ~ enfermedades$Disease_Category, 
+        las = 2,
+        xlab = "Enfermedad",
+        ylab = "Presion Sistólica",
+        cex.axis = 0.7,
+        cex.lab = 0.5,
+        col = rainbow(length(nombres))) # Parece ser que no hay diferencias significativas.
+```
+
+**Verificación de supuestos para aplicar el ANOVA**
+
+  1. Los pacientes fueron seleccionados a través de un muestreo aleatorio.
+  2. Suponemos que los pacientes sufren de una sola enfermedad.
+  3. Verificamos la normalidad de los datos.
+
+```{r}
+tapply(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category, function(x) lillie.test(x)$p.value) # No hay normalidad en ninguno en la presión sistólica en ninguno de los grupos.
+```
+
+  4: Homogeniedad de las varianzas con la prueba de Levene. 
+
+Ho: Las varianzas son iguales en los grupos.
+H1: Las varianzas son diferentes en los grupos.
+
+```{r}
+tapply(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category, var)
+levene.test(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category) # Si hay igualdad de varianzas en todos los grupos.
+```
+
+Planteamos el siguiente juego de hippotesis:
+
+$$
+H_0: M_C = M_D=M_H=M_{HD}=M_{HY}=M_N=M_S\\
+H_1: M_C \neq M_D\neq M_H\neq M_{HD}\neq M_{HY}\neq M_N\neq M_S\\
+$$
+
+Aplicamos el test de Kruskal-Wallis 
+```{r}
+kruskal.test(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category)
+#Decisión: Como p-value = 0.164 > 0.05 no se rechaza la hipótesis nula.
+#Conclusión: Existe suficiente evidencia estadistica para sustenar la aseveración de que la mediana de la presión sistólica de los pacientes es la misma sin importar la enfermedad que padezca.
+```
+
+Prueba Post-Hoc para saber que dos grupos difieren
+```{r}
+pairwise.wilcox.test(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category) # No se observan diferencias significativas entre los grupos.
+```
+
+
+## **PROBLEMA DE LAS DIETAS**
+
+En un estudio sobre el efecto de diferentes tipos de dieta en el peso corporal, se seleccionaron al azar 78 participantes. A cada participante se le asignó una de las tres dietas: A, B o C. Después de seguir la dieta durante 6 meses, se registró su peso corporal.
+
+Los datos recopilados incluyen el sexo de la persona (masculino o femenino) y su peso corporal después de los 6 meses de la dieta.
+
+Verificar si el peso promedio de las personas después de someterse a cualquiera de las dietas (A, B o C) difiere significativamente.
+
+```{r}
+diet <- read_excel("diet.xlsx")
+tapply(diet$weight6weeks, diet$diet, shapiro.test)
+```
+
+Verificación de supuestos:
+
+  1. Se cumple ya que los participantes fueron seleccionados aleatoriamente.
+  2. Se cumple ya que son muestras independientes (se somenten a una sola dieta)
+  3. Verifiquemos la normalidad significativa de cada grupo.
+
+```{r}
+table(diet$diet)
+
+#Aplicamos Shapiro.test
+tapply(diet$weight6weeks, diet$diet, function(x) shapiro.test(x)$p.value) #Como p_value = 0.004 < 0.05 para la dieta B, se rechaza la hipótesis nula en favor de la alternativa. Por lo que la dieta B no sigue una distribución significativamente normal.
+```
+
+  4. Homogeniedad de las varianzas con la prueba de Levene. 
+Ho: Las varianzas son iguales en los grupos.
+H1: Las varianzas son diferentes en los grupos.
+
+```{r}
+levene.test(diet$weight6weeks, diet$diet)
+#Como p = 0.6761 > 0.05 no se rechaza la hipótesis nula, por lo que hay igualdad de varianzas.
+```
+
+Planteamos el siguiente juego de hippotesis:
+
+$$
+Ho: M_A=M_B=M_C\\
+H_1:M_A \neq M_B \neq M_C
+$$
+
+Análisis Preliminar
+
+```{r}
+library(dplyr)
+diet %>%
+  group_by(diet) %>%
+  summarise(
+    cantidad = n(),
+    promedio = mean(weight6weeks),
+    mediana = median(weight6weeks),
+    desviación = sd(weight6weeks),
+    varianza = var(weight6weeks)
+  ) %>% 
+  print()
+
+boxplot(diet$weight6weeks ~ diet$diet,
+        col = c("yellow", "blue", "red"),
+        main = "Dietas")
+```
+
+
+Aplicamos el test de Kruskal-Wallis 
+```{r}
+kruskal.test(diet$weight6weeks, diet$diet)
+#Decisión: Como p_value = 0.7092 > 0.05 no se rechaza la hipótesis nula.
+#Conclusión: No hay diferencia significativa entre los grupos por el tipo de dieta al cual fueron sometidos.
+```
+
+Prueba Post-Hoc para saber que dos grupos difieren
+
+```{r}
+pairwise.wilcox.test(diet$weight6weeks, diet$diet) #No se observan diferencias significativas entre los grupos.
+```

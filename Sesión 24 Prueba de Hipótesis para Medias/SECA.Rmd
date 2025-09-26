@@ -1,0 +1,137 @@
+---
+title: 'Sesión 24: Prueba de Hipótesis Para una Media'
+author: "David Nexticapan Cortes"
+date: "2025-03-25"
+output: html_document
+---
+
+Cargamos librerías
+```{r}
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(car)
+library(nortest)
+library(tseries)
+library(BSDA)
+```
+
+# **Análisis de Normalidad**
+
+```{r}
+set.seed(123)
+datos <- round(rnorm(500, 20000, 5000),2)
+df_salarios <- data.frame(Salarios = datos)
+bins <- nclass.scott(df_salarios$Salarios)
+
+n <- length(datos)
+mean_teorica <- mean(datos)
+sd_teorica <- sd(datos) * sqrt((n-1)/n)
+ggplot(df_salarios, aes(x = Salarios)) +
+  geom_histogram(aes(y = after_stat(density)), bins = bins, fill = "gray", color = "black")+
+  geom_density(color = "blue4", lwd = 2)+
+  stat_function(fun = dnorm, args = list(mean = mean_teorica, sd = sd_teorica), col = "red", lwd = 2)
+
+ggplot(df_salarios, aes(x = Salarios)) +
+  geom_histogram(aes(y = after_stat(density)), bins = bins, fill = "gray", color = "black")+
+  geom_density(color = "blue4", lwd = 2)+
+  stat_function(fun = dnorm, args = list(mean = mean(datos), sd = sd(datos)), col = "red", lwd = 2)
+```
+
+**QQ-Norm**
+```{r}
+qqPlot(df_salarios$Salarios, pch = 20, col = "red", cex = 1)
+```
+
+**Test Kolmogorov - Smirnov**
+```{r}
+lillie.test(df_salarios$Salarios) # Como p-value = 0.7558 > 0.05 no se rechaza la hipótesis nula. Por lo tanto, existe suficiente evidencia estadística para sustentar la severación de que los salarios siguen una distribución normal. 
+```
+
+**Test Shapiro-Wilk**
+```{r}
+shapiro.test(df_salarios$Salarios) # Como p-value = 0.8639 > 0.05 no se rechaza la hipótesis nula. Por lo tanto, existe suficiente evidencia estadística para sustentar la severación de que los salarios siguen una distribución normal. 
+```
+
+**Test Anderson - Darling**
+```{r}
+ad.test(df_salarios$Salarios) # Como p-value = 0.6417 > 0.05 no se rechaza la hipótesis nula. Por lo tanto, existe suficiente evidencia estadística para sustentar la severación de que los salarios siguen una distribución normal. 
+```
+
+**Test Jarque - Bera**
+```{r}
+jarque.bera.test(df_salarios$Salarios) # Como p-value = 0.7179> 0.05 no se rechaza la hipótesis nula. Por lo tanto, existe suficiente evidencia estadística para sustentar la severación de que los salarios siguen una distribución normal al tener la curtosis y la asimetría de una distribución normal. 
+```
+
+
+# **Prueba de hipótesis para medias**
+
+Se presentan los pesos de 13 dulces M&M elegidos al azar de una bolsa que contiene 465 dulces cuyo contenido neto marcado en la etiqueta es de 396.9g. La desviación estándar de todos los dulces M&M que están en la bolsa es 𝜎=0.0565 g. 
+
+Utilice los datos muestrales con un nivel de significancia de 0.05 para probar la aseveración de un gerente de producción de que los dulces M&M en realidad tienen una media mayor que 0.8535 g, por lo que los consumidores están recibiendo una cantidad mayor de la indicada en la etiqueta. 
+
+Pesos: 0.751, 0.841, 0.856, 0.966, 0.859, 0.857, 0.942, 0.873, 0.809, 0.890, 0.878, 0.905, 0.8689
+
+```{r}
+pesos <- c(0.751, 0.841, 0.856, 0.966, 0.859, 0.857, 0.942, 0.873, 0.809, 0.890, 0.878, 0.905, 0.8689)
+```
+
+**Análisis Preliminar**
+```{r}
+summary(pesos)
+```
+
+Interpretación: La mediana y la media tienen el mismo valor, lo que sugiere una distribución simétrica. Además, existe una diferencia grande entre el dulce menos pesado y el más pesado.
+
+```{r}
+boxplot(pesos)
+```
+
+Interpretación: Podemos observar la presencia de 3 outliers  que pertenecen al dulce que pesa menos y a dos dulces que tienen un peso mayor. 
+
+**Verificación de Supuestos**
+  - Los dulces fueron seleccionados a través de un MAS
+  
+  - Se conoce la desviación estándar poblacional 𝜎=0.0565 g
+  
+  - Como tenemos menos de 30 datos se requiere realizar pruebas de Normalidad.
+
+```{r}
+# Histograma de frecuencias
+hist(pesos, probability = T, col = "yellow", breaks = nclass.Sturges(pesos), main = "Pesos M&M", ylim = c(0,12))
+lines(density(pesos), col = "red", lwd = 2)
+curve(dnorm(x, mean = mean(pesos), sd = sd(pesos)), col = "blue3", lwd = 2, add = T)
+```
+Interpretación:
+
+```{r}
+qqPlot(pesos)
+pesos[1]
+pesos[4]
+```
+
+Interpretación: Este gráfico muestra que los pesos de los m&m siguen una distribución aproximadamente normal, aunque existen algunos dulces con pesos extremos. En este caso, el dato 1 con un peso de 0.751 y el dato 4 con un peso de 0.966 se consideran ouliers sustentado también con el boxplot.
+
+```{r}
+shapiro.test(pesos) # Como p_value = 0.6993 no se rechaza la hipótesis nula. Por lo tanto, existe suficciente evidencia estadística para sustentar la aservación de que los pesos de los m&m siguen una distribución significativamente normal.
+```
+
+**Pantleamiento del juego de hipótesis**
+
+$$
+H_0: \mu \leq 0.8535\\
+H_1: \mu > 0.8535
+$$
+
+**Contraste de Hipótesis**
+```{r}
+z.test(x = pesos,
+       alternative = "greater",
+       mu = 0.8535,
+       sigma.x = 0.0565,
+       conf.level = 0.95)
+```
+
+Decisión: Como p-value = 0.1626 > 0.05 no se rechaza la hipótesis nula.
+
+Conclusión: No existe suficiente evidencia estadística para sustentar la aseveración del gerente qque indica que el peso medio de los m&m es mayor a 0.8535, por lo que no se está regalando producto. 

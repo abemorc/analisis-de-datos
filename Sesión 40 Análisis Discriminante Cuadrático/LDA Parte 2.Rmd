@@ -1,0 +1,210 @@
+---
+title: 'Sesión 31: Análisis del discriminante lineal (LDA)'
+author: "David Nexticapan Cortes"
+date: "2024-11-03"
+output: html_document
+---
+
+Librerías a utilizar
+
+
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(ggplot2)
+library(ggpubr)
+library(MVN)
+library(car)
+library(biotools) # test de Matriz de Covarianzas
+library(MASS) #Para poder usar la función lda/qda
+library(GGally) # Para el pairplot
+library(caTools) # sample.split
+library(dplyr)
+library(caret) # Matriz de confusión
+library(tidyr)
+```
+
+Cargamos la base de datos
+```{r}
+df_billetes <- read_excel("Billetes Falsos.xlsx")
+head(df_billetes)
+```
+
+  - is_genuine: Variable categórica (booleana) que indica si el objeto es auténtico (True) o falso (False).
+  
+  - diagonal: Longitud de la diagonal del objeto
+  
+  - height_left: Altura del lado izquierdo del objeto. Puede haber ligeras diferencias con el lado derecho.
+  
+  - height_right: Altura del lado derecho del objeto.
+  
+  - margin_low: Margen inferior.
+  
+  - margin_up: Margen superior.
+  
+  - length: Longitud horizontal del objeto (de lado a lado).
+
+**Análisis Exploratorio**
+```{r}
+colSums(is.na(df_billetes)) # Hay 37 missing values en margin_low.
+```
+
+```{r}
+# Base 1: Removemos las filas que tienen al menos un NA
+df_billetes1 <- drop_na(df_billetes)
+```
+
+```{r}
+# Transformamos los datos
+df_billetes1$is_genuine <- ifelse(df_billetes1$is_genuine == "True", "Genuino", "Falso")
+```
+
+```{r}
+str(df_billetes1) # La variable Especie es de tipo character.
+```
+
+```{r}
+df_billetes1$is_genuine <- factor(df_billetes1$is_genuine) # Convertimos la variable a factor.
+```
+
+Realizamos un pairplot
+```{r, warning=FALSE, message=FALSE}
+ggpairs(data = df_billetes1, aes(color = is_genuine))
+```
+
+  - La variable longitud horizontal del billete diferencia perfectamente a los billetes, mientras mayor sea será genuino.
+  
+  - La variable margen inferior del billete diferencia perfectamente a los billetes, mientras mayor sea será falso.
+  
+  - Las variables de la altura izquierda, la altura derecha y mergen superior diferencian moderadamente a los billetes, mientras mayor sean será falso
+  
+  - La variable de diagonal del billete no nos proporciona con certeza la diferencia entre los billetes.
+  
+**Verificación de Supuestos del Modelo**
+
+Dividimos nuestros datos en "Entrenamiento" y "Prueba"
+```{r}
+set.seed(42)
+barajeado1 <- slice_sample(df_billetes1, prop = 1)
+split <- sample.split(barajeado1$is_genuine, SplitRatio = 0.8) # Vector lógico 
+billetes1_train <- subset(barajeado1, split == TRUE)
+billetes1_test <- subset(barajeado1, split == FALSE)
+```
+
+Verificar la normalidad de los datos para cada variable en cada grupo y la normalidad multivariada.
+```{r}
+vars <- names(billetes1_train)[-1]  # Excluye la columna "Especie"
+sapply(vars, function(var) {
+  tapply(billetes1_train[[var]], billetes1_train$is_genuine, function(x) {
+    p <- shapiro.test(x)$p.value
+    if (p > 0.05) {
+      return(paste0("p = ", round(p, 4), " → Normal"))
+    } else {
+      return(paste0("p = ", round(p, 4), " → No normal"))
+    }
+  })
+})
+# No se viola gravemente el supuesto.
+```
+
+Verificación de normalidad multivariada:
+
+![](Normalidad Multivariada.jpg)
+
+Paso previo: Identificamos la presencia de outliers con la prueba de Henze-Zirkler, para decidir el tipo de prueba de normalidad multivariada más adecuada.
+
+```{r}
+mvn(data = subset(billetes1_train, is_genuine == "Falso")[,-1], mvnTest = "hz", multivariateOutlierMethod = "quan")
+mvn(data = subset(billetes1_train, is_genuine == "Genuino")[,-1], mvnTest = "hz", multivariateOutlierMethod = "quan") # No viola gravemente el supuesto de normalidad multivariada.
+```
+  
+  - Sí hay normalidad multivariada por grupo.
+  
+**Homogeniedad de varianzas**
+
+Homogeniedad de varianzas:
+  
+  Hipótesis nula (H₀): Las varianzas son iguales en todos los grupos.
+  Hipótesis alternativa (H₁): Las varianzas no son iguales en todos los grupos.
+  
+```{r}
+leveneTest(diagonal ~ is_genuine, data = billetes1_train) # La varianzas son iguales
+leveneTest(height_left ~ is_genuine, data = billetes1_train) # Las varianzas no son iguales
+leveneTest(height_right ~ is_genuine, data = billetes1_train) # Las varianzas son iguales
+leveneTest(margin_low ~ is_genuine, data = billetes1_train) # Las varianzas no son iguales
+leveneTest(margin_up ~ is_genuine, data = billetes1_train) # Las varianzas son iguales
+leveneTest(length ~ is_genuine, data = billetes1_train) # Las varianzas no son iguales
+```
+
+**Homogeniedad de matrices de covarianza**
+   
+   Ho: La matriz de covarianza es igual en todos los grupos.
+   H1: La matriz de covarianza es diferente en todos los grupos.
+
+Calculamos las matrices de covarianza
+```{r}
+billetes_falsos <- subset(billetes1_train, is_genuine == "Falso")
+billetes_genuinos <- subset(billetes1_train, is_genuine == "Genuino")
+cov(billetes_falsos[,-1]); cov(billetes_genuinos[,-1])
+```
+
+Realizamos el test
+```{r}
+boxM(data = billetes1_train[,-1], grouping = billetes1_train$is_genuine) # Las matrices de covarianza no son iguales.
+```
+
+**Estimación de coeficientes para el modelo QDA**
+
+```{r}
+modelo_qda <- qda(is_genuine ~ ., data = billetes1_train)
+```
+
+**Realizamos predicciones**
+
+```{r}
+predicciones <- predict(object = modelo_qda, newdata = billetes1_test)
+clase_predicha <- predicciones$class
+```
+
+**Generamos la matriz de Confusión**
+
+```{r}
+dato_real <- factor(billetes1_test$is_genuine, levels = levels(billetes1_test$is_genuine))
+dato_predicho <- factor(clase_predicha, levels = levels(billetes1_test$is_genuine))
+
+# Matriz de confusión y métricas
+conf_matrix <- confusionMatrix(data = dato_predicho, reference = dato_real, positive = "Genuino")
+print(conf_matrix$table)
+
+# Métricas individuales
+accuracy <- conf_matrix$overall["Accuracy"] # Proporción total de predicciones correctas.
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+f1 <- conf_matrix$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  - Verdaderos negativos (TN = 95): El modelo predijo correctamente que 95 billetes eran falsos, y efectivamente lo eran.
+  
+  - Verdaderos positivos (TP = 192): El modelo clasificó correctamente 192 billetes como genuinos, y efectivamente lo eran.
+  
+  - Falsos positivos (FN = 2): El modelo predijo que 2 billetes eran genuinos cuando realmente eran falsos.
+  
+  - Falsos negativos (FT = 3): El modelo predijo que 3 billetes eran falsos cuando realmente eran genuinos.
+  
+  - Exactitud (Accuracy = 0.9829): El modelo acertó en el 98.29% de los casos, tanto al identificar billetes genuinos como falsos. Es un rendimiento excelente, lo que indica que el modelo generaliza bien.
+  
+  - Precisión (Precision = 98.46%): De todos los billetes que el modelo clasificó como genuinos, el 98.46% realmente lo eran. Esto muestra que el modelo comete muy pocos errores al confundir billetes falsos con genuinos (bajo número de falsos positivos).
+  
+  - Sensibilida (Recall = 98.97%): El modelo identificó correctamente el 98.97% de los billetes genuinos reales. Esto significa que prácticamente no se le escapan billetes verdaderos (muy pocos falsos negativos).
+  
+  - F1 Score = 98.71%: Este valor refleja un excelente balance entre la precisión y la sensibilidad del modelo. Un F1 tan alto indica que el modelo tiene un rendimiento muy sólido en ambos aspectos: tanto identificar correctamente los billetes genuinos como evitar clasificar erróneamente los falsos.
+  
+  - Nos da las mismas métricas que el modelo Logístico. Cualquiera de los dos modelos es bueno.
+  
+
+Práctica: Realizar un modelo LDA o QDA para la misma base de datos de los billetes "Imputando" los valores NA por la media. Hacer una comparativa con este modelo y establecer cuál es el mejor modelo.

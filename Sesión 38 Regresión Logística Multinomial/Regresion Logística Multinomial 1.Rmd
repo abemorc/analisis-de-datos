@@ -1,0 +1,369 @@
+---
+title: "Regresión Logística MultiNomial"
+author: "David Nexticapan Cortes"
+date: "2025-04-13"
+output: html_document
+---
+
+Cargamos librearías
+```{r, warning=FALSE, message=FALSE}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(caTools)
+library(caret)
+library(GGally) #pairplot
+library(tidyr) # Para utilizar la función drop.na
+```
+
+Cargamos la base de datos
+```{r}
+df_billetes <- read_excel("Billetes Falsos.xlsx")
+head(df_billetes)
+```
+
+  - is_genuine: Variable categórica (booleana) que indica si el objeto es auténtico (True) o falso (False).
+  
+  - diagonal: Longitud de la diagonal del objeto
+  
+  - height_left: Altura del lado izquierdo del objeto. Puede haber ligeras diferencias con el lado derecho.
+  
+  - height_right: Altura del lado derecho del objeto.
+  
+  - margin_low: Margen inferior.
+  
+  - margin_up: Margen superior.
+  
+  - length: Longitud horizontal del objeto (de lado a lado).
+
+**Análisis Exploratorio**
+```{r}
+# Transformamos los datos
+df_billetes$is_genuine <- ifelse(df_billetes$is_genuine == "True", 1, 0)
+# 0: Billete Falso
+# 1: Billete Genuino
+```
+
+```{r}
+colSums(is.na(df_billetes)) # Hay 37 missing values en margin_low.
+```
+
+```{r}
+# Base 1: Removemos las filas que tienen al menos un NA
+df_billetes1 <- drop_na(df_billetes)
+
+# Base 2: Imputamos los NA en margin_low con la media
+media_margin <- mean(df_billetes$margin_low, na.rm = TRUE)
+df_billetes2 <- df_billetes
+df_billetes2$margin_low[is.na(df_billetes2$margin_low)] <- media_margin
+```
+
+```{r}
+# Verificamos que no existan valores NA en ambas bases
+colSums(is.na(df_billetes1))
+colSums(is.na(df_billetes2))
+```
+
+Base 1: Summary
+```{r}
+resumen <- df_billetes1 %>% 
+  group_by(is_genuine) %>% 
+  summarise(Total = n(),
+            Mínimo = min(length),
+            Q1 = quantile(length, 0.25),
+            Mediana = median(length),
+            Media = mean(length),
+            Q3 = quantile(length, 0.75),
+            Máximo = max(length)
+            ) %>% 
+  print()
+# 492 Falsos
+# 971 Genuinos
+```
+
+Base 2: Summary
+```{r}
+resumen <- df_billetes2 %>% 
+  group_by(is_genuine) %>% 
+  summarise(Total = n(),
+            Mínimo = min(length),
+            Q1 = quantile(length, 0.25),
+            Mediana = median(length),
+            Media = mean(length),
+            Q3 = quantile(length, 0.75),
+            Máximo = max(length)
+            ) %>% 
+  print()
+# 500 Falsos
+# 1000 Genuinos
+```
+
+Base 1: Realizamos un pairplot
+```{r, warning=FALSE, message=FALSE}
+glimpse(df_billetes1)
+df_billetes1$is_genuine <- as.factor(df_billetes1$is_genuine)
+ggpairs(data = df_billetes1, aes(color = is_genuine))
+```
+
+Base 2: Realizamos un pairplot
+```{r, warning=FALSE, message=FALSE}
+df_billetes2$is_genuine <- as.factor(df_billetes2$is_genuine)
+ggpairs(data = df_billetes2, aes(color = is_genuine))
+```
+
+**Aplicación del Modelo**
+
+Modelo 1: Dividimos nuestros datos en "Entrenamiento" y "Prueba"
+```{r}
+set.seed(42)
+barajeado1 <- slice_sample(df_billetes1, prop = 1)
+split <- sample.split(barajeado1$is_genuine, SplitRatio = 0.8) # Vector lógico 
+billetes1_train <- subset(barajeado1, split == TRUE)
+billetes1_test <- subset(barajeado1, split == FALSE)
+```
+
+Modelo 2: Dividimos nuestros datos en "Entrenamiento" y "Prueba"
+```{r}
+set.seed(42)
+barajeado2 <- slice_sample(df_billetes2, prop = 1)
+split <- sample.split(barajeado2$is_genuine, SplitRatio = 0.8) # Vector lógico 
+billetes2_train <- subset(barajeado2, split == TRUE)
+billetes2_test <- subset(barajeado2, split == FALSE)
+```
+
+Modelo 1: Ajuste
+```{r}
+# Ajuste del modelo de regresión logística
+modelo1 <- glm(is_genuine ~ ., 
+              data = billetes1_train, 
+              family = binomial)
+
+# Resumen del modelo
+summary(modelo1)
+```
+  
+  - El valor de AIC (66.022) es muy bajo, lo cual indica un buen desempeño del modelo dentro de los datos de entrenamiento. Sin embargo, este indicador es tan bueno que pueden ser señal de sobreajuste, es decir, que el modelo se ajusta demasiado a los datos de entrenamiento y podría no generalizar bien a nuevos datos.
+  
+  - Al analizar los coeficientes estimados, observamos que varias variables son estadísticamente significativas. Por ejemplo, las variables height_right, margin_low, margin_up y length tienen valores de p muy bajos, lo cual indica que tienen un efecto importante en la probabilidad de que un billete sea genuino. 
+
+
+Modelo 2: Ajuste
+```{r}
+# Ajuste del modelo de regresión logística
+modelo2 <- glm(is_genuine ~ ., 
+              data = billetes2_train, 
+              family = binomial)
+
+# Resumen del modelo
+summary(modelo2)
+```
+
+  - El valor de AIC (77.667) también es muy bajo, lo cual indica un buen desempeño del modelo dentro de los datos de entrenamiento.
+  
+  - Al analizar los coeficientes estimados, observamos que varias variables son estadísticamente significativas. Por ejemplo, las variables height_left, margin_low, margin_up y length tienen valores de p muy bajos, lo cual indica que tienen un efecto importante en la probabilidad de que un billete sea genuino.
+  
+  - En conclusión, hasta el momento el que ajusta mejor los datos es el Modelo 1 al tener un AIC más bajo.
+
+Modelo 1: Realizamos nuestras predicciones
+```{r}
+# Realizamos nuestras predicciones:
+predicciones1 <- predict(modelo1, newdata = billetes1_train, type = "response")
+head(predicciones1)
+# type = "response": Esto indica que deseas obtener las probabilidades predichas (valores entre 0 y 1).
+```
+
+Modelo 1: Realizamos nuestra clasificación
+```{r}
+# Clasificación basada en el umbral de 0.5
+clasificacion1 <- ifelse(predicciones1 < 0.5, 0,1)
+
+# Mostrar la clasificación
+head(clasificacion1)
+```
+
+Modelo 2: Realizamos nuestras predicciones
+```{r}
+# Realizamos nuestras predicciones:
+predicciones2 <- predict(modelo2, newdata = billetes2_train, type = "response")
+head(predicciones2)
+# type = "response": Esto indica que deseas obtener las probabilidades predichas (valores entre 0 y 1).
+```
+
+Modelo 2: Realizamos nuestra clasificación
+```{r}
+# Clasificación basada en el umbral de 0.5
+clasificacion2 <- ifelse(predicciones2 < 0.5, 0, 1)
+
+# Mostrar la clasificación
+head(clasificacion2)
+```
+
+Modelo 1: Generamos las predicciones de probabilidad para el conjunto de prueba "test" usando el modelo de regresión logística.
+```{r}
+# Paso 1: Calcular las probabilidades para los datos de prueba
+probabilidades1 <- predict(modelo1, newdata = billetes1_test, type = "response")
+head(probabilidades1)
+
+# Paso 2: Convertir probabilidades en clases 0 o 1 con umbral 0.5
+predicciones_clase1 <- ifelse(probabilidades1 < 0.5, 0, 1)
+head(predicciones_clase1)
+```
+
+Modelo 2: Generamos las predicciones de probabilidad para el conjunto de prueba "test" usando el modelo de regresión logística.
+```{r}
+# Paso 1: Calcular las probabilidades para los datos de prueba
+probabilidades2 <- predict(modelo2, newdata = billetes2_test, type = "response")
+head(probabilidades2)
+
+# Paso 2: Convertir probabilidades en clases 0 o 1 con umbral 0.5
+predicciones_clase2 <- ifelse(probabilidades2 < 0.5, 0, 1)
+head(predicciones_clase2)
+```
+
+Modelo 1: Generamos la matriz de confusiones y calculamos las métricas
+```{r}
+# Hay que asegurarse que ambas estén como factores
+y_real1 <- factor(billetes1_test$is_genuine, levels = c(0, 1))
+y_pred1  <- factor(predicciones_clase1, levels = c(0, 1))
+
+# Matriz de confusión y métricas
+conf_matrix1 <- confusionMatrix(data = y_pred1, reference = y_real1, positive = "1")
+print(conf_matrix1$table)
+
+# Métricas individuales
+accuracy <- conf_matrix1$overall["Accuracy"] # Proporción total de predicciones correctas.
+precision <- conf_matrix1$byClass["Precision"]
+recall <- conf_matrix1$byClass["Recall"]
+f1 <- conf_matrix1$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  - Verdaderos negativos (TN = 95): El modelo predijo correctamente que 95 billetes eran falsos, y efectivamente lo eran.
+  
+  - Verdaderos positivos (TP = 192): El modelo clasificó correctamente 192 billetes como genuinos, y efectivamente lo eran.
+  
+  - Falsos positivos (FP = 3): El modelo predijo que 3 billetes eran genuinos cuando realmente eran falsos.
+  
+  - Falsos negativos (FN = 2): El modelo predijo que 2 billetes eran falsos cuando realmente eran genuinos.
+  
+  - Exactitud (Accuracy = 0.9829): El modelo acertó en el 98.29% de los casos, tanto al identificar billetes genuinos como falsos. Es un rendimiento excelente, lo que indica que el modelo generaliza bien.
+  
+  - Precisión (Precision = 98.46%): De todos los billetes que el modelo clasificó como genuinos, el 98.46% realmente lo eran. Esto muestra que el modelo comete muy pocos errores al confundir billetes falsos con genuinos (bajo número de falsos positivos).
+  
+  - Sensibilida (Recall = 98.97%): El modelo identificó correctamente el 98.97% de los billetes genuinos reales. Esto significa que prácticamente no se le escapan billetes verdaderos (muy pocos falsos negativos).
+  
+  - F1 Score = 98.71%: Este valor refleja un excelente balance entre la precisión y la sensibilidad del modelo. Un F1 tan alto indica que el modelo tiene un rendimiento muy sólido en ambos aspectos: tanto identificar correctamente los billetes genuinos como evitar clasificar erróneamente los falsos.
+  
+Modelo 2: Generamos la matriz de confusiones y calculamos las métricas
+```{r}
+# Hay que asegurarse que ambas estén como factores
+y_real2 <- factor(billetes2_test$is_genuine, levels = c(0, 1))
+y_pred2  <- factor(predicciones_clase2, levels = c(0, 1))
+
+# Matriz de confusión y métricas
+conf_matrix2 <- confusionMatrix(data = y_pred2, reference = y_real2, positive = "1")
+print(conf_matrix2$table)
+
+# Métricas individuales
+accuracy <- conf_matrix2$overall["Accuracy"] # Proporción total de predicciones correctas.
+precision <- conf_matrix2$byClass["Precision"]
+recall <- conf_matrix2$byClass["Recall"]
+f1 <- conf_matrix2$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  - Verdaderos negativos (TN = 96): El modelo predijo correctamente que 96 billetes eran falsos, y efectivamente lo eran.
+  
+  - Verdaderos positivos (TP = 200): El modelo clasificó correctamente 200 billetes como genuinos, y efectivamente lo eran.
+  
+  - Falsos positivos (FP = 4): El modelo predijo que 4 billetes eran genuinos cuando realmente eran falsos.
+  
+  - Falsos negativos (FN = 0): El modelo predijo que 0 billetes eran falsos cuando realmente eran genuinos.
+  
+  - Exactitud (Accuracy = 0.9867): El modelo acertó en el 98.67% de los casos, tanto al identificar billetes genuinos como falsos. Es un rendimiento excelente, lo que indica que el modelo generaliza bien.
+  
+  - Precisión (Precision = 98.03%): De todos los billetes que el modelo clasificó como genuinos, el 98.03% realmente lo eran. Esto muestra que el modelo comete muy pocos errores al confundir billetes falsos con genuinos (bajo número de falsos positivos).
+  
+  - Sensibilida (Recall = 100%): El modelo identificó correctamente el 100% de los billetes genuinos reales. Esto significa que no se le escapan billetes verdaderos (muy pocos falsos negativos).
+  
+  - F1 Score = 99%: Este valor refleja un excelente balance entre la precisión y la sensibilidad del modelo. Un F1 tan alto indica que el modelo tiene un rendimiento muy sólido en ambos aspectos: tanto identificar correctamente los billetes genuinos como evitar clasificar erróneamente los falsos.
+  
+#**Modelo 3**
+
+Cuando hablamos de "penalizar" un modelo, nos referimos a añadir una penalización (castigo) en la función de ajuste del modelo, con el objetivo de evitar que el modelo se complique demasiado. **“Te permito tener buen ajuste, pero te castigo si usas demasiadas variables o coeficientes grandes.”**
+
+```{r}
+modelo_step1 <- step(glm(is_genuine ~ ., family = binomial, data = billetes1_train), direction = "both")
+summary(modelo_step1)
+```
+
+  - El valor de AIC (63.924) también es muy bajo junto con Modelo 1 y Modelo 2, lo cual indica un buen desempeño del modelo dentro de los datos de entrenamiento.
+  
+  - Al analizar los coeficientes estimados, observamos que las variables son estadísticamente significativas ya que tienen valores de p muy bajos, lo cual indica que tienen un efecto importante en la probabilidad de que un billete sea genuino.
+  
+Modelo 3: Realizamos nuestras predicciones
+```{r}
+# Realizamos nuestras predicciones:
+predicciones3 <- predict(modelo_step1, newdata = billetes1_train, type = "response")
+head(predicciones3)
+# type = "response": Esto indica que deseas obtener las probabilidades predichas (valores entre 0 y 1).
+```
+
+Modelo 3: Realizamos nuestra clasificación
+```{r}
+# Clasificación basada en el umbral de 0.5
+clasificacion3 <- ifelse(predicciones3 < 0.5, 0, 1)
+
+# Mostrar la clasificación
+head(clasificacion3)
+```
+
+Modelo 3: Generamos las predicciones de probabilidad para el conjunto de prueba "test" usando el modelo de regresión logística.
+```{r}
+# Paso 1: Calcular las probabilidades para los datos de prueba
+probabilidades3 <- predict(modelo_step1, newdata = billetes1_test, type = "response")
+head(probabilidades3)
+
+# Paso 2: Convertir probabilidades en clases 0 o 1 con umbral 0.5
+predicciones_clase3 <- ifelse(probabilidades3 < 0.5, 0, 1)
+head(predicciones_clase3)
+```
+
+Modelo 3: Generamos la matriz de confusiones y calculamos las métricas
+```{r}
+# Hay que asegurarse que ambas estén como factores
+y_real3 <- factor(billetes1_test$is_genuine, levels = c(0, 1))
+y_pred3  <- factor(predicciones_clase3, levels = c(0, 1))
+
+# Matriz de confusión y métricas
+conf_matrix3 <- confusionMatrix(data = y_pred3, reference = y_real3, positive = "1")
+print(conf_matrix3$table)
+
+# Métricas individuales
+accuracy <- conf_matrix3$overall["Accuracy"] # Proporción total de predicciones correctas.
+precision <- conf_matrix3$byClass["Precision"]
+recall <- conf_matrix3$byClass["Recall"]
+f1 <- conf_matrix3$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  - Tienes las mismas métricas que el Modelo 1. Aunque este modelo pudiera resultar mejor ya que utiliza menos variables y tiene un AIC menor que el Modelo 1.
+
+
+**Tarea** Realizar un Modelo 4 con la función step aplicado a billetes2_train. Comparar modelos y elegir el que mejor ajuste a los datos.Justificar bajo qué métrica se hace esta elección y por qué es importante.
+

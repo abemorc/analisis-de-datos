@@ -1,0 +1,239 @@
+---
+title: "Árboles de decisión"
+author: "David Nexticapan Cortes"
+date: "2024-11-18"
+output: html_document
+---
+
+Librerías a utilizar
+
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(rpart)
+library(rpart.plot)
+library(tidyr)
+library(caret) # Para la matriz de confusión.
+library(caTools)
+library(GGally) #pairplot
+```
+
+Importamos el dataset
+```{r}
+df_billetes <- read_excel("Billetes Falsos.xlsx")
+head(df_billetes)
+```
+
+  - is_genuine: Variable categórica (booleana) que indica si el objeto es auténtico (True) o falso (False).
+  
+  - diagonal: Longitud de la diagonal del objeto
+  
+  - height_left: Altura del lado izquierdo del objeto. Puede haber ligeras diferencias con el lado derecho.
+  
+  - height_right: Altura del lado derecho del objeto.
+  
+  - margin_low: Margen inferior.
+  
+  - margin_up: Margen superior.
+  
+  - length: Longitud horizontal del objeto (de lado a lado).
+
+**Análisis Exploratorio**
+
+Verificamos la clase de cada variable
+```{r}
+glimpse(df_billetes)
+```
+
+Trabajamos las variables factor
+```{r}
+df_billetes$is_genuine <- factor(df_billetes$is_genuine, levels = c("False","True"), labels = c("Falso","Genuino"))
+glimpse(df_billetes)
+```
+
+Verificamos la presencia de missing values
+```{r}
+colSums(is.na(df_billetes)) # Hay 37 missing values en margin_low.
+```
+
+
+Limpiamos la base de datos 
+```{r}
+# Removemos las filas que tienen al menos un NA
+df_billetes <- drop_na(df_billetes)
+```
+
+Realizamos un pairplot
+```{r, warning=FALSE, message=FALSE}
+ggpairs(data = df_billetes, aes(color = is_genuine))
+```
+
+**Aplicación del Modelo**
+
+#**Modelo 1**
+
+Dividir la base de datos en entrenamiento y prueba
+```{r}
+set.seed(42)
+barajeado <- slice_sample(df_billetes, prop = 1)
+split <- sample.split(barajeado$is_genuine, SplitRatio = 0.8) # Vector lógico 
+billetes_train <- subset(barajeado, split == TRUE)
+billetes_test <- subset(barajeado, split == FALSE)
+```
+
+Entrenamiento del árbol con el índice de Gini
+```{r}
+# Entrenamiento del árbol con índice Gini
+modelo <- rpart(is_genuine ~ ., data = billetes_train, method = "class", parms = list(split = "gini"))
+```
+
+Visualizamos el árbol
+```{r}
+rpart.plot(modelo, type = 2, extra = 104)
+```
+
+Realizamos nuestras predicciones
+```{r}
+y_pred <- predict(modelo, newdata = billetes_test, type = "class")
+y_pred
+```
+
+Generamos la matriz de confusión
+```{r}
+y_real <- billetes_test$is_genuine
+
+conf_matrix <- confusionMatrix(data = y_pred, reference = y_real, positive = "Genuino")
+print(conf_matrix$table)
+```
+
+  - Verdaderos negativos (TN = 93): El modelo clasificó correctamente a 93 billetes como falsos, y efectivamente lo eran.
+  
+  - Verdaderos positivos (TP = 192): El modelo clasificó correctamente a 192 billetes como genuinos, y efectivamente lo eran.
+  
+  - Falsos negativos (FN = 2): El modelo clasificó incorrectamente a 2 billetes como falsos cuando realmente eran genuinos.
+  
+  - Falsos positivos (FP = 5): El modelo clasificó incorrectamente a 5 billetes como genuinos cuando realmente eran falsos.
+
+Extraemos las métricas
+```{r}
+# Extraer métricas
+accuracy <- conf_matrix$overall["Accuracy"]
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+f1 <- conf_matrix$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  - Exactitud (Accuracy = 0.9760): El modelo acertó en el 97.60% de los casos, tanto al identificar billetes genuinos como falsos. Es un rendimiento excelente, lo que indica que el modelo generaliza bien.
+  
+  - Precisión (Precision = 97.46%): De todos los billetes que el modelo clasificó como genuinos, el 97.46% realmente lo eran. Esto muestra que el modelo comete muy pocos errores al confundir billetes falsos con genuinos (bajo número de falsos positivos).
+  
+  - Sensibilida (Recall = 98.97%): El modelo identificó correctamente el 98.97% de los billetes genuinos reales. Esto significa que prácticamente no se le escapan billetes verdaderos (muy pocos falsos negativos).
+  
+  - F1 Score = 98.21%: Este valor refleja un excelente balance entre la precisión y la sensibilidad del modelo. Un F1 tan alto indica que el modelo tiene un rendimiento muy sólido en ambos aspectos: tanto identificar correctamente los billetes genuinos como evitar clasificar erróneamente los falsos.
+  
+#**Modelo 2**
+
+```{r}
+modelo2 <- rpart(is_genuine ~ ., data = billetes_train, method = "class", parms = list(split = "gini"), control = rpart.control(maxdepth = 1))
+```
+
+Visualizamos el árbol
+```{r}
+rpart.plot(modelo2, type = 2, extra = 104)
+```
+
+  - Es el mismo modelo que el primero.
+  
+  - Nota: Calcular la matriz de confusión y las métricas para su interpretación.
+
+#**Modelo 3**
+
+```{r}
+modelo3 <- rpart(is_genuine ~ ., data = billetes_train, method = "class", parms = list(split = "information"))
+```
+
+Visualizamos el árbol
+```{r}
+rpart.plot(modelo3, type = 2, extra = 104)
+```
+
+  - Es el mismo modelo que el primero.
+  
+#**Modelo 4**
+
+Ajustamos el modelo con un cp bajo y activamos validación cruzada
+```{r}
+modelo4 <- rpart(is_genuine ~ ., data = billetes_train, method = "class", control = rpart.control(cp = 0.001, xval = 10))
+```
+
+Revisamos la tabla de complejidad del modelo.
+```{r}
+printcp(modelo4)
+```
+
+  -  El mejor cp es el que tiene el xerror más bajo, en este caso 0.001.
+
+Visualizamos el árbol
+```{r}
+rpart.plot(modelo4, type = 2, extra = 104)
+```
+
+  Nota: Calcular la matriz de confusión para este modelo 4 y sus métricas con interpretación. (Este modelo es antes de la poda)
+
+Podamos el árbol al mejor cp 
+```{r}
+mejor_cp <- modelo4$cptable[which.min(modelo4$cptable[, "xerror"]), "CP"]
+modelo4_podado <- prune(modelo4, cp = mejor_cp)
+```
+
+Visualizamos el árbol despúes de la poda
+```{r}
+rpart.plot(modelo4_podado, type = 2, extra = 104)
+```
+
+  - Es el mismo modelo que el primero y el tercero.
+
+
+#**Comparación de Modelos**
+
+$$
+\begin{array}{|l|c|c|c|}
+\hline
+\textbf{Métrica} & \textbf{Modelo 1 Logístico} & \textbf{Modelo 2 Logístico} & \textbf{Modelo 3 Logístico} & \textbf{Modelo 4 Tarea} & \textbf{Modelo 4 Decision Tree} \\
+\hline
+\text{Verdaderos Negativos (TN)} & 95 & 96 & 95 & - & 93 \\
+\text{Falsos Positivos (FP)}     & 3 & 4 & 5& - & 5 \\
+\text{Falsos Negativos (FN)}     & 2 & 0 & 2 & - & 2 \\
+\text{Verdaderos Positivos (TP)} & 192 & 200 & 192 & - & 192\\
+\text{Exactitud (Accuracy)}      & 98.29\% & 98.67\% & 98.29\% & -\% & 97.60\% \\
+\text{Precisión (Precision)}     & 98.46\% & 98.03\% & 98.46\% & -\% & 97.47\% \\
+\text{Sensibilidad (Recall)}     & 98.97\% & 100\% & 98.97\% & -\% & 98.97\% \\
+\text{F1 Score}                  & 98.71\% & 99\% & 98.71\% & -\% & 98.21\% \\
+\text{AIC}                       & 66.022 & 77.667 & 63.924 & - & - \\
+\hline
+\end{array}
+$$
+
+última práctica
+
+  - Necesitamos 5 modelos para esta base de datos
+    1. Con índice de Gini
+    2. Máximo de niveles (1 nivel)
+    3. índice de ganancia de información
+    4. Con un cp = 0.001 (sin podar)
+    5. Con el "mejor" cp para la poda
+  
+  - Cada modelo debe presentar graficamente su árbol de decisión
+  - Cada modelo debe tener su matriz de confusión con interpretación
+  - Cada modelo debe tener sus 4 métricas con su interpretación
+  - Tabla comparativa de los modelos para seleccionar "el mejor"
+
+
+
+

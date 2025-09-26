@@ -1,0 +1,394 @@
+---
+title: "ANOVA1"
+author: "David Nexticapan Cortes"
+date: "2024-04-28"
+output: html_document
+---
+
+Cargamos las librerías
+```{r, message=FALSE, warning=FALSE}
+library(car)
+library(lawstat) # Pruebaa de levene.
+library(dplyr)
+library(readxl)
+library(tidyr)
+```
+
+
+## **Problema de los álamos**
+
+El conjunto de datos incluye los pesos (en kilogramos) de álamos seleccionados aleatoriamente que recibieron distintos tratamientos en un mismo terreno el cual tiene un suelo fértil y húmedo, y se localiza cerca de un arroyo. Se desea determinar si el tipo de tratamiento difiere en el peso de los álamos. Los pesos que consideraremos son los siguientes.
+
+```{r}
+t_ninguno <- c(0.15,0.02,0.16,0.37,0.22, 0.15, 0.30, 0.09, 0.11, 0.12)
+t_fertilizante <- c(0.78, 1.12, 0.98, 1.00, 1.08, 0.94, 0.83, 1.00, 0.91, 0.87)
+t_riego <- c(0.56, 0.45, 0.36, 0.55, 0.55, 0.22, 0.64, 0.41, 0.41, 0.63)
+```
+
+```{r}
+# Generamos un data.frame con la información de los álamos
+base_alamos <- data.frame(Tratamiento = rep(c("ninguno","fertilizante","riego"), each = 10),
+                          Peso = c(t_ninguno, t_fertilizante, t_riego))
+```
+
+```{r}
+by(base_alamos$Peso, base_alamos$Tratamiento, summary)
+```
+
+  - Dentro del summary se puede observar que las medias en los grupos son significativamente diferentes, por lo que si pudiera haber diferencia en los grupos. 
+  
+  - La mediana en el tratamiento "ninguno" es menor que su media, lo que sugiere un sesgo a la derecha.
+  
+  - La mediana de los tratamientos de fertilizante y riego es mayor que su media, lo que sugiera un sesgo a la izquierda.
+  
+```{r}
+par(mfrow = c(2, 2))  # 2 filas, 2 columnas
+
+colores <- c("lightblue", "lightgreen", "orange")
+titulos <- c("Fertilizante", "Ninguno", "Riego")
+lista <- split(base_alamos$Peso, base_alamos$Tratamiento) # split divide un data.frame en una lista, agrupando los datos por clases.
+
+for (i in 1:3) {
+  datos <- lista[[i]]
+  hist(datos, probability = TRUE, main = titulos[i], col = colores[i], xlab = "Peso", breaks = nclass.Sturges(datos))
+  lines(density(datos), col = "red", lwd = 4)
+  curve(dnorm(x, mean = mean(datos), sd = sd(datos)), col = "blue4", lwd = 4, add = TRUE)
+}
+```
+
+  - De los histogramas con sus respectivas curvas de densidad empírica y teórica "normal" se puede observar que la que mejor se ajusta a los datos es para el tratamiento "ninguno".
+  
+  - Para los otros dos tratamientos no es tan bueno el ajuste ya que tienen discrepancias muy evidentes. 
+
+```{r}
+#Boxplot
+boxplot(t_ninguno, t_fertilizante, t_riego, 
+        names = c("Sin Tratamiento", "Fertilizante", "Riego"),
+        col = c("lightblue", "lightgreen", "orange"), 
+        main = "Distribución de Tratamientos", 
+        ylab = "Valores", 
+        xlab = "Tratamiento")
+
+boxplot(base_alamos$Peso ~ base_alamos$Tratamiento,
+        col = c("lightblue", "lightgreen", "orange"),
+        main = "Distribución de Tratamientos")
+```
+
+  - Con el boxplot se puede observar una diferencia significativa entre los pesos de los álamos que reciben el tratamiento de fertilizante a comparación de los otros tratamientos.
+  
+  - No hay presencia de outliers.
+
+**Verificación de supuestos para aplicar el ANOVA**
+
+  1. Los álamos fueron seleccionados aleatoriamente.
+  
+  2. Las muestras son independientes entre sí ya que se someten a un solo tipo de tratamiento.
+  
+  3. Verificamos la normalidad de los datos.
+  
+Aplicamos Shapiro Test
+
+```{r}
+tapply(base_alamos$Peso, base_alamos$Tratamiento, function(x) shapiro.test(x)$p.value)
+```
+
+  - Ninguno. Como p-value = 0.4912 no se rechaza la hipótesis nula de que los datos siguen una distribución aproximadamente normal.
+  
+  - Fertilizante. Como p-value = 0.9644 no se rechaza la hipótesis nula de que los datos siguen una distribución aproximadamente normal.
+  
+  - Riego. Como p-value = 0.5011 no se rechaza la hipótesis nula de que los datos siguen una distribución aproximadamente normal.
+  
+  4: Homogeniedad de las varianzas con la prueba de Levene. 
+
+$H_0:$ Las varianzas son iguales en los grupos.
+$H_1:$ Las varianzas son diferentes en los grupos.
+
+```{r}
+tapply(X = base_alamos$Peso, INDEX = base_alamos$Tratamiento, FUN = var)
+levene.test(base_alamos$Peso, base_alamos$Tratamiento)
+```
+  
+  - Se puede observar que las varianzas en los tres tratamientos son significativamente iguales.
+  
+  - Del test de hipótesis, como p-value = 0.481 > 0.05 no se rechaza la hipótesis nula de que las varianzas en los grupos son iguales.
+
+**Contraste de Hipótesis**
+
+Planteamos el siguiente juego de hipótesis:
+
+  - $\mu_1$ representa el peso medio de los álamos bajo el tratamiento fe
+  - $\mu_2$ representa el peso medio de los álamos bajo el tratamiento fertilizante
+  - $\mu_3$ representa el peso medio de los álamos bajo el tratamiento riego
+  
+$$
+H_0: μ_1 =  μ_2 = μ_3\\
+H_1:μ_1 \neq μ_2 \neq μ_3 
+$$
+
+Aplicamos en ANOVA
+```{r}
+modelo_anova <- aov(Peso ~ Tratamiento, data = base_alamos)
+summary(modelo_anova)
+```
+
+  - Decisión: Como p = 4.57e-14 < 0.05 se rechaza la hipótesis nula en favor de la alternativa.
+  
+  - Conclusión: Existe suficiente evidencia estadísticas para sustentar la aseveración de que hay diferencias significativas en el peso medio de los álamos en el menos dos grupos.
+
+**Prueba de Comparaciones Múltiples de Tukey:** Esta prueba es un método estadístico utilizado para comparar todas las medias entre sí, cuando se ha realizado un ANOVA y se ha encontrado una diferencia significativa entre al menos dos grupos.
+
+```{r}
+TukeyHSD(modelo_anova)
+```
+
+  - Se puede observar que todos los tratamientos comparados de dos en dos tienen medias diferentes, ya que el p_value es menor al nivel de significancia y por tanto, se rechaza la hipótesis nula de que las medias de los pesos de los álamos son iguales.
+
+
+## **Problema de los dulces M&M**
+
+Cargamos la base de datos
+```{r}
+PesosM_M <- read_excel("PesosM&M.xlsx")
+head(PesosM_M)
+```
+
+```{r}
+pesos_dulces <- pivot_longer(data = PesosM_M,
+                             cols = everything(),
+                             names_to = "Color",
+                             values_to = "Peso")
+pesos_dulces <- na.omit(pesos_dulces)
+head(pesos_dulces)
+```
+
+**Análisis Exploratorio**
+
+```{r}
+by(pesos_dulces$Peso, pesos_dulces$Color, summary)
+```
+
+  -
+  
+  -
+  
+```{r}
+par(mfrow = c(3, 2))  # 3 filas, 2 columnas
+
+colores <- c("yellow", "blue", "brown", "orange", "red", "green")
+titulos <- c("Amarillo", "Azul", "Café", "Anaranjado", "Rojo", "Verde")
+lista <- split(pesos_dulces$Peso, pesos_dulces$Color)
+
+for (i in 1:6) {
+  datos <- lista[[i]]
+  hist(datos, probability = TRUE, main = titulos[i], col = colores[i], xlab = "Peso", breaks = nclass.Sturges(datos))
+  lines(density(datos), col = "red", lwd = 3)
+  curve(dnorm(x, mean = mean(datos), sd = sd(datos)), col = "blue4", lwd = 3, add = TRUE)
+}
+```
+
+  -
+  
+  -
+  
+```{r}
+boxplot(pesos_dulces$Peso ~ pesos_dulces$Color,
+        col = colores,
+        xlab = "Color",
+        ylab = "Peso")
+```
+
+  -
+  
+  -
+  
+```{r}
+inf_por_color <- tapply(pesos_dulces$Peso, pesos_dulces$Color, function(x) boxplot.stats(x))
+inf_por_color
+```
+
+**Verificación de supuestos para aplicar el ANOVA**
+
+  1. Los dulces fueron seleccionados a través de un muestreo aleatorio.
+  2. Las muestras son independientes entre sí ya que el dulce es de un solo color.
+  3. Verificamos la normalidad de los datos.
+  
+```{r}
+tapply(pesos_dulces$Peso, pesos_dulces$Color, function(x) shapiro.test(x)$p.value)
+# Todos los pesos de cada grupo de la muestra siguen una distribución significativamente normal.
+```
+
+  4. Homogeniedad de las varianzas con la prueba de Levene. 
+  
+$H_0:$ Las varianzas son iguales en los grupos.
+$H_1:$ Las varianzas son diferentes en los grupos.
+
+```{r}
+tapply(X = pesos_dulces$Peso, INDEX = pesos_dulces$Color, FUN = var)
+levene.test(pesos_dulces$Peso, pesos_dulces$Color)
+```
+
+  -
+  
+  -
+
+**Contraste de Hipótesis**
+
+Planteamos el siguiente juego de hipótesis:
+
+  - $\mu_1$ peso medio de los m&m amarillos 
+  - $\mu_2$ peso medio de los m&m azules
+  - $\mu_3$ peso medio de los m&m cafés
+  - $\mu_4$ peso medio de los m&m naranjas
+  - $\mu_5$ peso medio de los m&m rojos
+  - $\mu_6$ peso medio de los m&m verdes
+
+$$
+H_0: μ_1 =  μ_2 = μ_3 = μ_4 = μ_5 = μ_6\\
+H_1:μ_1 \neq μ_2 \neq μ_3 \neq μ_4 \neq μ_5 \neq μ_6
+$$
+
+```{r}
+modelo_anova <- aov(Peso ~ Color, data = pesos_dulces)
+summary(modelo_anova)
+```
+
+  -
+  
+  -
+  
+Prueba de Comparaciones Múltiples de Tukey:
+```{r}
+TukeyHSD(modelo_anova)
+```
+
+  - 
+
+## **Problema de la Presión Sistólica**
+
+Una clínica especializada en enfermedades crónicas ha recopilado datos sobre pacientes que han sido diagnosticados con distintas enfermedades, como hipertensión, diabetes, enfermedades cardíacas, cáncer, y también pacientes considerados sanos.
+
+Los datos incluyen información sobre la edad, género, altura, peso, presión arterial sistólica y diastólica, y la categoría de enfermedad de cada paciente.
+
+Se desea evaluar si existen diferencias estadísticamente significativas en los niveles de presión arterial sistólica entre las distintas categorías de enfermedad.
+
+Cargamos la base de datos
+```{r}
+enfermedades <- read_excel("1- medical_records(project 5).xlsx")
+head(enfermedades)
+```
+
+**Análisis Exploratorio**
+```{r}
+colSums(is.na(enfermedades)) # No hay presencia de valores NA
+```
+
+```{r}
+by(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category, summary)
+```
+
+  -
+  
+  -
+
+```{r}
+table(enfermedades$Disease_Category)
+```
+
+```{r}
+nombres <- sort(unique(enfermedades$Disease_Category))
+datos <- split(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category) # Obtenemos sublistas.
+
+par(mfrow = c(3, 3))  # 2 filas, 2 columnas
+
+for (i in 1:7){
+  valores <- datos[[i]]
+  hist(valores, prob = T, col = "skyblue", main = nombres[i], breaks = nclass.Sturges(valores))
+  lines(density(valores), col = "blue4", lwd = 3)
+  curve(dnorm(x, mean = mean(valores), sd = sd(valores)), col = "red", lwd = 3, add = TRUE)
+}
+```
+
+  -
+  
+  -
+  
+```{r}
+boxplot(enfermedades$Blood_Pressure_Systolic ~ enfermedades$Disease_Category, 
+        las = 2,
+        xlab = "Enfermedad",
+        ylab = "Presion Sistólica",
+        cex.axis = 0.7,
+        cex.lab = 0.3,
+        col = rainbow(length(nombres)))
+```
+
+  - 
+  
+  -
+  
+**Verificación de supuestos para aplicar el ANOVA**
+
+  1. Los pacientes fueron seleccionados a través de un muestreo aleatorio.
+  2. Suponemos que los pacientes sufren de una sola enfermedad.
+  3. Verificamos la normalidad de los datos.
+
+```{r}
+tapply(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category, function(x) lillie.test(x)$p.value)
+```
+
+  -
+  
+  4: Homogeniedad de las varianzas con la prueba de Levene. 
+
+Ho: Las varianzas son iguales en los grupos.
+H1: Las varianzas son diferentes en los grupos.
+
+```{r}
+tapply(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category, var)
+levene.test(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category) 
+```
+
+  -
+  
+  -
+  
+  
+Planteamos el siguiente juego de hippotesis:
+
+  - $M_C$ Mediana de la presión sistólica de pacientes con cáncer.
+  - $M_D$ Mediana de la presión sistólica de pacientes con diabetes
+  - $M_H$ Mediana de la presión sistólica de pacientes saludables.
+  - $M_{HD}$ Mediana de la presión sistólica de pacientes con enfermedad del corazón.
+  - $M_{HY}$ Mediana de la presión sistólica de pacientes con hipertensión.
+  - $M_N$ Mediana de la presión sistólica de pacientes con enfermedad del riñón.
+  - $M_S$ Mediana de la presión sistólica de pacientes con accidente cerebrovascular. 
+
+$$
+H_0: M_C = M_D=M_H=M_{HD}=M_{HY}=M_N=M_S\\
+H_1: M_C \neq M_D\neq M_H\neq M_{HD}\neq M_{HY}\neq M_N\neq M_S\\
+$$
+
+Aplicamos el test de Kruskal-Wallis 
+```{r}
+kruskal.test(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category)
+```
+  
+  -
+  
+  -
+  
+Prueba Post-Hoc para saber qué dos grupos difieren
+```{r}
+pairwise.wilcox.test(enfermedades$Blood_Pressure_Systolic, enfermedades$Disease_Category)
+```
+
+  - 
+
+
+## **Práctica 7: PROBLEMA DE LAS DIETAS**
+
+En un estudio sobre el efecto de diferentes tipos de dieta en el peso corporal, se seleccionaron al azar 78 participantes. A cada participante se le asignó una de las tres dietas: A, B o C. Después de seguir la dieta durante 6 meses, se registró su peso corporal.
+
+Los datos recopilados incluyen el sexo de la persona (masculino o femenino) y su peso corporal después de los 6 meses de la dieta.
+
+Verificar si el peso promedio de las personas después de someterse a cualquiera de las dietas (A, B o C) difiere significativamente.

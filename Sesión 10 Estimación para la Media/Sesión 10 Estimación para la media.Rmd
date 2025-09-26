@@ -1,0 +1,89 @@
+---
+title: 'Sesión 9: Intervalo de confianza para medias'
+author: "David Nexticapan Cortes"
+date: "2024-07-27"
+output: word_document
+---
+
+# Intervalo de confianza para la media con sigma conocida
+
+Creamos una función para calcular el intervalo de confianza para estimar a la media poblacional con sigma conocida:
+```{r}
+conf_interval_media_sigma_conocida <- function(media_muestral, n, sigma, nivel_confianza){
+  alfa <- 1 - nivel_confianza
+  v_critico <- qnorm(1 - alfa / 2, lower.tail = TRUE)
+  error <- round(v_critico * sigma / sqrt(n),3)
+  l_inferior <- media_muestral - error
+  l_superior <- media_muestral + error
+  cat("Tenemos una confianza del", nivel_confianza * 100, "% de que el intervalo (", c(l_inferior, l_superior), ") realmente contiene el verdadero valor de la media poblacional")
+}
+```
+
+Problema 1: Tienes una base de datos “Pulso Cardiaco Mujeres” que contiene información sobre 40 mujeres seleccionadas aleatoriamente de un grupo que sufre de presión alta. Las variables registradas en la base de datos son: Edad, Estatura (en m), Peso (en kg), Cintura (en cm) y Pulso (en pulsaciones por minuto).
+
+Importamos la base de datos:
+```{r}
+library(readxl)
+PulsoCardiacoMujeres <- read_excel("PulsoCardiacoMujeres.xlsx")
+View(PulsoCardiacoMujeres)
+```
+
+Calcular e interpreta el intervalo de confianza del 95% para el pulso medio de las mujeres en la base de datos. Considera que 𝜎=10
+```{r}
+conf_interval_media_sigma_conocida(media_muestral = mean(PulsoCardiacoMujeres$Pulso), n = length(PulsoCardiacoMujeres$Pulso), sigma = 10, nivel_confianza = 0.95) #60 a 100 es lo adecuado para adultos.
+```
+
+# Tamaño de muestra para estimar a la media poblacional con sigma conocida.
+
+Creamos una función para calcular el tamaño de muestra:
+```{r}
+tamaño_muestra_media_sigma_conocida <- function(sigma, nivel_confianza, error){
+  alfa <- 1 - nivel_confianza
+  v_critico <- qnorm(1 - alfa / 2, lower.tail = TRUE)
+  n <- ceiling((v_critico * sigma / error) ^ 2) 
+  cat("El tamaño de muestra mínimo requerido es de:", n)
+}
+```
+
+Problema 2: Suponga que queremos estimar la puntuación media del CI de la población de profesores de estadística. ¿Cuántos profesores de estadística deben seleccionarse al azar para efectuar pruebas de CI, si queremos tener una confianza del 95% de que la media muestral estará dentro de 2 puntos del CI de la media poblacional? Considere a 𝜎=15.
+```{r}
+tamaño_muestra_media_sigma_conocida(15, 0.95, 2)
+```
+
+# Intervalo de confianza y tamaño de muestra para estimar a la media poblacional con sigma y N conocidas.
+
+Función para el intervalo de confianza:
+```{r}
+intervalo_medias_sigma_N <- function(media_muestral, sigma, n, N, alfa){
+  v_critico <- qnorm(p = 1 - alfa / 2, lower.tail = T)
+  error <- v_critico * (sigma / sqrt(n)) * sqrt((N - n) / (N - 1))
+  l_inferior <- media_muestral - error
+  l_superior <- media_muestral + error
+  cat("El intervalo de confianza para estimar a la media poblacional es: (", l_inferior, ",", l_superior,")")
+}
+```
+
+Función para el tamaño de muestra:
+```{r}
+tamaño_media_sigma_N <- function(alfa, sigma, N, error){
+  v_critico <- qnorm(p = 1 - alfa / 2, lower.tail = T)
+  numerador <- v_critico ^ 2 * sigma ^ 2 * N
+  denominador <- v_critico ^ 2 * sigma ^ 2 + (N - 1) * error ^ 2
+  n = ceiling(numerador / denominador)
+  cat("El tamaño mínimo requerrido es: ", n)
+}
+```
+
+Problema 3: Una compañía de seguros está interesada en evaluar la satisfacción de sus asegurados con respecto a los servicios y coberturas proporcionados. Para obtener una estimación precisa de la satisfacción de los asegurados, la compañía necesita calcular el tamaño muestral necesario. La compañía tiene una base de datos de todos sus asegurados, y el tamaño total de la población es de 10,000 asegurados. Además, la compañía ha realizado estudios anteriores y sabe que la satisfacción de los asegurados sigue una distribución normal con una desviación estándar poblacional de 0.1 (en una escala de satisfacción de 0 a 1). La compañía desea que el margen de error en la estimación de la satisfacción promedio sea de 0.02 y que el nivel de confianza sea del 95%. ¿Cuál es el tamaño muestral necesario para estimar la satisfacción promedio de los asegurados? 
+
+```{r}
+# Establecemos parámetros
+N <- 10000
+sigma <- 0.1
+error <- 0.02
+alfa <- 0.05
+
+# Aplicamos la función creada
+tamaño_media_sigma_N(alfa, sigma, N, error)
+```
+

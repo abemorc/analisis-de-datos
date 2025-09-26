@@ -1,0 +1,125 @@
+---
+title: 'Sesión 27: Prueba de Hipótesis Para Dos Proporciones'
+author: "David Nexticapan Cortes"
+date: "2025-04-08"
+output: html_document
+---
+
+**Problema 1:**
+
+En una prueba controlada se identificó a 156 pacientes con síndrome del túnel carpiano, a los que se trató con entablillado o cirugía. Estos pacientes fueron evaluados un año después. De los 73 pacientes que fueron tratados con cirugía, 67 resultaron exitosos. De los 83 pacientes tratados con entablillados, 60 resultaron exitosos. 
+
+Al examinar los resultados de las pruebas, parece que la cirugía es un mejor tratamiento porque su porcentaje de éxito es del 92%, comparado con el 72% del tratamiento de entablillado. ¿Los resultados muestrales realmente sustentan la aseveración de que la cirugía es mejor? 
+
+Verificación de Supuestos
+
+  - Las muestras de ambas pobolaciones son independientes ya que solo se puede someter a un solo tratamiento. 
+  
+  - Regla de los 5: 
+    Entablillado 83 pacientes de los cuales tuvimos 60 éxitos y 23 fracasos.
+    Cirugía: 73 pacientes de los cuales tuvimos 67 éxitos y 6 fracasos.
+
+Contraste de Hipótesis
+
+$$
+H_0: p_1 \geq p_2\\
+H_1: p_1 < p_2\\
+p_1: La \ proporción \ pacientes \ entablillado \\
+p_2: La \ proporción \ pacientes \ cirugía
+$$
+```{r}
+?prop.test
+prop.test(x = c(60, 67),
+          n = c(83, 73),
+          alternative = "less",
+          conf.level = 0.95)
+```
+
+Decisión: Como p-value = 0.001771 < 0.05 se rechaza la hipótesis nula en favor de la alternativa.
+
+Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que la cirugía es mejor que el entablillado.
+
+# Prueba de Hipótesis Para Medias
+
+Una empresa realizó un concurso de promoción para ocupar el puesto de gerente. A continuación, se muestran las edades de algunos solicitantes elegidos al azar que tuvieron éxito y de los que no tuvieron éxito. Algunos de los solicitantes que no tuvieron éxito para obtener el ascenso se quejaron de que hubo discriminación por edad en la competencia. 
+
+Utilice un nivel se significancia de 0.05 para poner a prueba la aseveración de que los solicitantes sin éxito provienen de una población con una edad media mayor que la de los solicitantes exitosos. ¿Parece haber discriminación por la edad?
+
+Edades de solicitantes sin éxito: 34, 37, 37, 38, 41, 42, 43, 44, 44, 45, 45, 45, 46, 48, 49, 53, 53, 54, 54, 55, 56, 57, 60.
+
+Edades de solicitantes con éxito: 27, 33, 36, 37, 38, 38, 39, 42, 42, 43, 43, 44, 44, 44, 45, 45, 45, 45, 46, 46, 47, 47, 48, 48, 49, 49, 51, 51, 52, 54
+
+```{r}
+edades_sin_exito <- c(34, 37, 37, 38, 41, 42, 43, 44, 44, 45, 45, 45, 46, 48, 49, 53, 53, 54, 54, 55, 56, 57, 60)
+edades_con_exito <- c(27, 33, 36, 37, 38, 38, 39, 42, 42, 43, 43, 44, 44, 44, 45, 45, 45, 45, 46, 46, 47, 47, 48, 48, 49, 49, 51, 51, 52, 54)
+```
+
+**Análisis Exploratorio**
+```{r}
+summary(edades_sin_exito)
+summary(edades_con_exito)
+```
+  - Podemos observar que mediana es menor que la media, lo que sugiere una asimetría a la derecha. (Sin éxito)
+  
+  - Podemos observar que mediana es mayor que la media, lo que sugiere una asimetría a la izquierda. (Con éxito)
+  
+  -  El 25% de los trabajadores que no tuvieron éxito tienen una edad mayor o igual a 53.50 años.
+
+```{r}
+hist(edades_sin_exito, breaks = 7)
+hist(edades_con_exito)
+```
+
+  Interpretación:
+  
+```{r}
+boxplot(edades_sin_exito, edades_con_exito, col = c("lightblue", "pink"))
+```
+
+  Interrpretación:
+  
+**Verificación de Supuestos**
+
+  1. Las muestras son independientes ya que solo se puede pertenecer a una poblacion (éxito y sin éxito)
+  
+  2. Suponemos que hubo un MAS para seleccionar ambas muestras.
+  
+  3. Como en ambas muestras no tenemos más de 30 datos, procedemos a realizar un análisis de normalidad
+
+TAREA: Realizar histogramas con la curva de densidad empírica y teórica. Realizar el QQ-Norm para verificar la normalidad, valores atípicos, valores extremos.
+
+```{r}
+shapiro.test(edades_sin_exito) # Sí hay normalidad.
+shapiro.test(edades_con_exito) # Sí hay normalidad.
+```
+
+  4. Al conocer a sigma poblacional utilizaremos a la distribución t-Student por lo que necesitamos hacer un test dde varianzas iguales.
+  
+  H_0: Las poblaciones tienen varianzas iguales
+  H_1: Las poblaciones tienen varianzas diferentes.
+
+```{r}
+var.test(edades_sin_exito, edades_con_exito) 
+# Como p-value = 0.299 > 0.05 no se rechaza la hipótesis nula.
+# Sí hay igualdad de varianzas.
+```
+
+Planteamos el juego de hipótesis
+$$
+H_0: \mu_1 \leq \mu_2 \\
+H_1:\mu_1>\mu_2 \\
+\mu_1: Media\ edad\ trabajadores\ sin \ exito \\
+\mu_2: Media\ edad\ trabajadores\ con \ exito
+$$
+```{r}
+t.test(x = edades_sin_exito,
+       y = edades_con_exito,
+       alternative = "greater",
+       mu = 0,
+       var.equal = TRUE,
+       conf.level = 0.95)
+```
+
+Decisión: Como p-value = 0.04957 < 0.05 se rechaza la hipótesis nula en favor de la alternativa
+
+Conclusión: Exxiste suficiente evidencia estadística para sustentar la aseveración de que la edad media de los trabajadores que no tuvieron éxito es mayor que la edad media de los que sí tuvieron éxito.

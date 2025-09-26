@@ -1,0 +1,155 @@
+---
+title: "Prueba de Hipótesis para Proporciones"
+author: "David Nexticapan Cortes"
+date: "2025-03-20"
+output: html_document
+---
+
+**Problema 1**: Cuando Gregor Mendel llevó a cabo sus célebres experimentos de hibridación con guisantes, uno de ellos resultó en una descendencia de 428 plantas con vainas verdes y 152 plantas con vainas amarillas. Según su teoría, se esperaba que 1/4 de los descendientes tuvieran vainas amarillas. Utilizando un nivel de significancia de 0.05, realice una prueba de hipótesis para verificar la afirmación de que la proporción de plantas de guisantes con vainas amarillas es igual a 1/4.
+
+Verificación de Supuestos:
+
+  - Suponemos que hubo un muestreo aleatorio simple en la selección de los guisantes.
+  
+  - Tenemos dos posibles resultados: Vainas amarilla (éxito) y vainas verdes (fracaso).
+  
+  - $np = (580 * 0.25)=145$ y $nq = (580*0.75)=435$
+  
+Planteamos el siguiente juego de hipótesis
+
+$$
+H_0: p = 1/4 \\
+H_a: p \neq 1/4
+$$
+
+**Prueba de Wald**
+
+Método Tradicional
+
+```{r}
+# Calcular valores críticos
+alpha <- 0.05
+critico_izq <- round(qnorm(alpha/2, lower.tail = T),3)
+critico_izq
+critico_der <- round(qnorm(1 - alpha/2, lower.tail = T),3)
+critico_der
+
+# Calculamos el estadístico de prueba 
+estadistico_proporciones <- function(p_hat, p, n){
+  z <- round((p_hat - p) / sqrt(p * (1 - p) / n),2)
+  print(z)
+}
+estadistico_proporciones(152/580, 0.25, 580)
+```
+
+**Decisión:** Como el estadístico dde prueba Z = 0.67 es menor que el valor crítico 1.96 y mayor que -1.96, no se rechaza la hipótesis nula.
+
+**Conclusión:** Existe suficiente evidencia estadística para sustentar la aseveraciópn de que 1/4 de las plantas tienen vainas amarillas, con un nivel de confianza del 95%
+
+
+Método por intervalo de confianza
+
+```{r}
+intervalo_p <- function(exitos, n, conf_level){
+  p_muestral <- exitos / n
+  q_muestral <- 1 - p_muestral
+  alfa <- 1 -  conf_level
+  v_critico <- round(qnorm(1 - alfa / 2, lower.tail = TRUE),3)
+  error <- v_critico * sqrt(p_muestral * q_muestral / n)
+  intervalo <- round(c(p_muestral - error, p_muestral + error),3)
+  cat("Tenemos una confianza del", conf_level*100, "% de que el intervalo (", paste(intervalo, collapse = ","), ") realmente contiene el valor verdadero de 𝑝.\n")
+}
+intervalo_p(exitos = 152, n = 580, conf_level = 0.95)
+```
+
+**Decisión:** Como el valor aseverado del 0.25 se encuentra dentro del intervalo de confianza, no se rechaza la hipótesis nula.
+
+**Conclusión:** Existe suficiente evidencia estadística para sustentar la aseveración de que 1/4 de las plantas tienen vainas amarillas, con un nivel de confianza del 95%.
+
+
+Método p_value
+
+```{r}
+# El estadístico de prueba = 0.67
+p_value <- 2 * pnorm(0.67, lower.tail = F)
+p_value
+```
+
+**Decisión:** Como el p_value = 0.5028578 > 0.05 no se rechaza la hipótesis nula.
+
+**Conclusión:** Existe suficiente evidencia estadística para sustentar la aseveración de que 1/4 de las plantas tienen vainas amarillas, con un nivel de confianza del 95%.
+
+
+** Prueba de chi-cuadrada de Pearson**
+
+```{r}
+prop.test(x = 152,
+          n = 580,
+          p = 0.25,
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+
+**Decisión 1:** Como el valor aseverado del 0.25 se encuentra dentro del intervalo de confianza (0.2271103 , 0.3002337), no se rechaza la hipótesis nula.
+
+**Decisión 2:** Como el p_value = 0.5331 > 0.05 no se rechaza la hipótesis nula.
+
+**Conclusión:** Existe suficiente evidencia estadística para sustentar la aseveración de que 1/4 de las plantas tienen vainas amarillas, con un nivel de confianza del 95%.
+
+
+**Binomial Exacta**
+
+```{r}
+binom.test(x = 152,
+           n = 580,
+           p = 0.25,
+           alternative = "two.sided",
+           conf.level = 0.95)
+```
+
+**Decisión 1:** Como el valor aseverado del 0.25 se encuentra dentro del intervalo de confianza (0.2267068 , 0.2998745), no se rechaza la hipótesis nula.
+
+**Decisión 2:** Como el p_value = 0.5022 > 0.05 no se rechaza la hipótesis nula.
+
+**Conclusión:** Existe suficiente evidencia estadística para sustentar la aseveración de que 1/4 de las plantas tienen vainas amarillas, con un nivel de confianza del 95%.
+
+
+**Problema:2** En un estudio de 11,000 accidentes automovilísticos seleccionados aleatoriamente por una compañía de seguros, se descubrió que 5586 de ellos ocurrieron a 8 km de casa del conductor. Utilice un nivel de significancia de 0.01 para probar la aseveración de que más del 50% de los accidentes automovilísticos ocurren dentro de 8 km de distancia de la casa del conductor.
+
+Verificación de Supuestos:
+
+  - Los accidentes se obtuvieron a través de un MAS
+  
+  - Tenemos accidentes a menos de 8 km de la casa del conductor (exítos) y más de 8 km de la casa del conductor (fracasos)
+  
+  - $np = 11000 * 0.01=110$ y $11000 * 0.99 = 10890$
+  
+Planteamos el siguiente juego de hipótesis
+
+$$
+H_0: p \leq 0.50\\
+H_1: p > 0.50
+$$
+
+```{r}
+prop.test(x = 5586,
+          n = 11000,
+          p = 0.50,
+          alternative = "greater",
+          conf.level = 0.99)
+```
+ **Decisión:** p-value = 0.05151 > 0.01 no se rechaza la hipótesis nula.
+ 
+ **Conclusión:** No existe suficiente evidencia estadísstica para sustentar la aseveración de que más del 50% de los accidentes automovilísticos suceden a menos de 8km de la casa del asegurado.
+ 
+```{r}
+binom.test(x = 5586,
+          n = 11000,
+          p = 0.50,
+          alternative = "greater",
+          conf.level = 0.99)
+```
+
+ **Decisión:** p-value = 0.0515 > 0.01 no se rechaza la hipótesis nula.
+ 
+ **Conclusión:** No existe suficiente evidencia estadísstica para sustentar la aseveración de que más del 50% de los accidentes automovilísticos suceden a menos de 8km de la casa del asegurado.

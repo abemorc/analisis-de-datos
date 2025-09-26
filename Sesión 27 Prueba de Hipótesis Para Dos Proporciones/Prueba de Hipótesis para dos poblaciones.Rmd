@@ -1,0 +1,86 @@
+
+---
+title: "Prueba de Hipótesis Para Dos Proporciones"
+author: "David Nexticapan Cortes"
+date: "2024-04-02"
+output: word_document
+---
+
+#Problema Síndrome del Túnel Carpiano
+
+En una prueba controlada se identificó a 156 pacientes con síndrome del túnel carpiano, a los que se trató con entablillado o cirugía. Estos pacientes fueron evaluados un año después. De los 73 pacientes que fueron tratados con cirugía, 67 resultaron exitosos. De los 83 pacientes tratados con entablillados, 60 resultaron exitosos. 
+
+Al examinar los resultados de las pruebas, parece que la cirugía es un mejor tratamiento porque su porcentaje de éxito es del 92%, comparado con el 72% del tratamiento de entablillado. ¿Los resultados muestrales realmente sustentan la aseveración de que la cirugía es mejor? 
+
+Verificación de requesitos:
+  
+  1. Son muestras independientes ya que cada persona se somete un tratamiento diferente.
+  2. Para la cirugía tenemos 67 éxitos y 73-67=6 fracasos. Para el entablillado tenemos 60 éxitos y 83-60=23 fracasos. 
+
+Planteamos el siguiente juego de hipótesis:
+
+$$
+H_0 : p_1 \leq p_2\\
+H_1 : p_1 > p_2\\
+p_1: Tratamiento \; de \; cirugía \\
+p_2: Tratamiento \; de \; entablillado
+$$
+
+```{r}
+prop.test(x = c(67, 60),
+          n = c(73, 83),
+          alternative = "greater",
+          conf.level = 0.95)
+```
+Decisión: Como p_value = 0.001771 < 0.05 se rechaza la hipótesis nula en favor de la alternativa.
+Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que la cigurgía es mejor que el entablillado con un nivel de confianza al 95%.
+
+
+#Problema Asegurados Fumadores
+
+Una compañía de seguros de salud está interesada en investigar si la proporción de hombres que fuman es significativamente diferente de la proporción de mujeres que fuman entre sus asegurados. Para realizar este análisis utiliza la base de datos "Aseguradora_Salud"
+
+Importamos la base de datos
+
+```{r}
+library(readxl)
+Aseguradora_Salud <- read_excel("Aseguradora_Salud.xlsm")
+```
+
+Contamos el número de hombres y mujeres en la muestra
+
+```{r}
+table(Aseguradora_Salud$sex) #female 662 y male 676
+```
+
+Contamos cuántos fumadores hay por sexo
+
+```{r}
+tapply(Aseguradora_Salud$smoker, Aseguradora_Salud$sex, function(x) sum(x == "yes"))
+# female 115 y male 159
+```
+
+Verificamos los requisitos:
+  1. Son muestras independientes ya que cada persona o es mujer o es hombre.
+  2. Para las 662 mujeres tenemos 115 éxitos y 547 fracasos. Para los 676 hombres tenemos 159 éxitos y 517 fracasos.
+  
+Planteamos el siguiente juego de hipótesis: 
+
+$$
+H_0 : p_1 = p_2\\
+H_1 : p_1 \neq p_2\\
+p_1: proporción \; female \; fumadoras \\
+p_2: proporción \; male \; fumadores
+$$
+
+Aplicamos el prop.test
+
+```{r}
+prop.test(x = c(115,159),
+          n = c(662, 676),
+          alternative = "two.sided",
+          conf.level = 0.95)
+```
+Decisión: Como p-value = 0.006548 < 0.05 se rechaza la hipótesis nula en favor de la alternativa.
+Conclusión: Existe suficiente evidencia estadística para sustentar la aseveración de que la proporción de hombres asegurados fumadores difiere de la proporción de mujeres fumadoras aseguradas. 
+

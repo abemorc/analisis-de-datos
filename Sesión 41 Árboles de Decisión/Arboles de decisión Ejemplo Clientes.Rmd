@@ -1,0 +1,273 @@
+---
+title: "Árboles de decisión"
+author: "David Nexticapan Cortes"
+date: "2024-11-18"
+output: html_document
+---
+
+Librerías a utilizar
+
+```{r, message=FALSE, warning=FALSE}
+library(readxl)
+library(dplyr)
+library(rpart)
+library(rpart.plot)
+library(tidyr)
+library(caret) # Para la matriz de confusión.
+library(caTools)
+library(GGally) #pairplot
+```
+
+Importamos el dataset
+```{r}
+df_clientes <- read_excel("Clientes.xlsx")
+head(df_clientes)
+```
+
+  -customerID: Identificador único del cliente.
+  
+  -gender: Género del cliente (Male o Female).
+  
+  -SeniorCitizen: Indica si el cliente es una persona mayor: 1 = Sí, 0 = No.
+  
+  -Partner: Indica si el cliente tiene pareja (Yes o No).
+  
+  -Dependents: Indica si el cliente tiene personas a su cargo, como hijos u otros dependientes (Yes o No).
+  
+  -tenure: Número de meses que el cliente ha estado con la empresa.
+  
+  -PhoneService: Indica si el cliente tiene servicio de telefonía (Yes o No).
+  
+  -MultipleLines: Si el cliente tiene múltiples líneas telefónicas: Yes, No, o No phone service.
+  
+  -InternetService: Tipo de servicio de internet: DSL, Fiber optic, o No.
+  
+  -OnlineSecurity: Si el cliente tiene servicio de seguridad en línea (Yes, No, o No internet service).
+  
+  -OnlineBackup: Si el cliente tiene respaldo de datos en línea (Yes, No, o No internet service).
+  
+  -DeviceProtection: Si el cliente tiene protección para dispositivos (Yes, No, o No internet service).
+  
+  -TechSupport: Si el cliente tiene soporte técnico (Yes, No, o No internet service).
+  
+  -StreamingTV: Si el cliente tiene servicio de televisión en streaming (Yes, No, o No internet service).
+  
+  -StreamingMovies: Si el cliente tiene servicio de películas en streaming (Yes, No, o No internet service).
+  
+  -Contract	Tipo de contrato: Month-to-month, One year, o Two year.
+  
+  -PaperlessBilling: Si el cliente recibe facturación electrónica (Yes o No).
+  
+  -PaymentMethod: Método de pago: Electronic check, Mailed check, Bank transfer (automatic), Credit card (automatic).
+  
+  -MonthlyCharges: Monto que el cliente paga mensualmente (en dólares).
+  
+  -TotalCharges: Monto total que el cliente ha pagado desde que inició el servicio.
+  
+  -Churn: Variable objetivo. Indica si el cliente abandonó el servicio (Yes) o no (No).
+
+**Análisis Exploratorio**
+
+Cambiamos el nombre de las variables
+```{r}
+colnames(df_clientes) <- c(
+  "cliente_id",     # customerID
+  "genero",         # gender
+  "mayor",          # SeniorCitizen
+  "pareja",         # Partner
+  "dependientes",   # Dependents
+  "antig_mes",      # tenure
+  "tel",            # PhoneService
+  "multi_lineas",   # MultipleLines
+  "internet",       # InternetService
+  "seguridad",      # OnlineSecurity
+  "respaldo",       # OnlineBackup
+  "proteccion",     # DeviceProtection
+  "soporte",        # TechSupport
+  "tv_streaming",   # StreamingTV
+  "pelis_streaming",# StreamingMovies
+  "contrato",       # Contract
+  "fact_elec",      # PaperlessBilling
+  "pago",           # PaymentMethod
+  "cobro_mensual",  # MonthlyCharges
+  "cobro_total",    # TotalCharges
+  "abandono"        # Churn
+)
+```
+
+Eliminamos la variable cliente_id ya que no es relevante para el modelo
+```{r}
+df_clientes$cliente_id <- NULL
+```
+
+
+Verificamos la clase de cada variable
+```{r}
+glimpse(df_clientes)
+```
+
+Trabajamos las variables factor
+```{r}
+df_clientes <- df_clientes %>% mutate(across(where(is.character), as.factor))
+df_clientes$mayor <- factor(df_clientes$mayor, levels = c(0,1), labels = c("No","Sí"))
+glimpse(df_clientes)
+```
+
+Verificamos la presencia de missing values
+```{r}
+colSums(is.na(df_clientes)) # Hay 11 missing values en cobro_total.
+```
+
+Limpiamos la base de datos 
+```{r}
+# Removemos las filas que tienen al menos un NA
+df_clientes <- drop_na(df_clientes)
+```
+
+**Aplicación del Modelo**
+
+#**Modelo 1**
+
+Dividir la base de datos en entrenamiento y prueba
+```{r}
+set.seed(42)
+barajeado <- slice_sample(df_clientes, prop = 1)
+split <- sample.split(df_clientes$genero, SplitRatio = 0.8) # Vector lógico 
+clientes_train <- subset(barajeado, split == TRUE)
+clientes_test <- subset(barajeado, split == FALSE)
+```
+
+Entrenamiento del árbol con el índice de Gini
+```{r}
+# Entrenamiento del árbol con índice Gini
+modelo <- rpart(abandono ~ ., data = clientes_train, method = "class", parms = list(split = "gini"))
+```
+
+Visualizamos el árbol
+```{r}
+rpart.plot(modelo, type = 2, extra = 104)
+```
+
+Realizamos nuestras predicciones
+```{r}
+y_pred <- predict(modelo, newdata = clientes_test, type = "class")
+y_pred
+```
+
+Generamos la matriz de confusión
+```{r}
+y_real <- clientes_test$abandono
+
+conf_matrix <- confusionMatrix(data = y_pred, reference = y_real, positive = "Yes")
+print(conf_matrix$table)
+```
+
+  - Verdaderos negativos (TN = 975): El modelo clasificó correctamente a 975 clientes que no dieron de baja su servicio, y efectivamente no lo hicieron.
+  
+  - Verdaderos positivos (TP = 120): El modelo clasificó correctamente a 120 clientes que dieron de baja su servicio, y efectivamente lo hicieron.
+  
+  - Falsos negativos (FN = 253): El modelo clasificó incorrectamente a 253 clientes como si no fueran a cancelar, cuando en realidad sí cancelaron.
+  
+  - Falsos positivos (FP = 59): El modelo clasificó incorrectamente a 59 clientes como si fueran a cancelar, cuando en realidad no lo hicieron.
+
+Extraemos las métricas
+```{r}
+# Extraer métricas
+accuracy <- conf_matrix$overall["Accuracy"]
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+f1 <- conf_matrix$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  - Exactitud (Accuracy = 77.83%): El modelo acertó en el 77.83% de los casos, ya sea prediciendo correctamente que un cliente se dio o no se dio de baja. Es un desempeño general razonable, aunque podría mejorarse, especialmente en identificar correctamente a quienes cancelan.
+  
+  - Precisión (Precision = 67.04%): De todos los clientes que el modelo predijo que cancelarían el servicio, el 67.04% realmente lo hicieron. Es decir, el modelo se equivoca en un 33% de las veces, clasificando como desertores a quienes realmente no se iban a ir (falsos positivos).
+  
+  - Sensibilidad o Recall (Recall = 32.17%): El modelo solo logró identificar correctamente al 32.17% de los clientes que realmente se dieron de baja. Esto indica que se le escapan muchos casos reales de cancelación (alto número de falsos negativos).
+  
+  - F1 Score = 43.48%: Este valor refleja un equilibrio moderado entre precisión y sensibilidad, pero muestra que el modelo tiene un rendimiento limitado para detectar cancelaciones reales. Puede acertar cuando predice que alguien se va, pero falla en detectar a muchos que efectivamente se irán.
+  
+  
+#**Modelo 2**
+
+```{r}
+modelo2 <- rpart(abandono ~ ., data = clientes_train, method = "class", parms = list(split = "information"))
+```
+
+Visualizamos el árbol
+```{r}
+rpart.plot(modelo2, type = 2, extra = 104)
+```
+
+  - Es el mismo modelo que el primero.
+  
+#**Modelo 3**
+
+Ajustamos el modelo con un cp bajo y activamos validación cruzada
+```{r}
+modelo3 <- rpart(abandono ~ ., data = clientes_train, method = "class", control = rpart.control(cp = 0.001, xval = 10))
+```
+
+Revisamos la tabla de complejidad del modelo.
+```{r}
+printcp(modelo3)
+```
+
+  -  El mejor cp es el que tiene el xerror más bajo, en este caso 0.0075758.
+
+Visualizamos el árbol
+```{r}
+rpart.plot(modelo3, type = 2, extra = 104)
+```
+
+Podamos el árbol al mejor cp 
+```{r}
+mejor_cp <- modelo3$cptable[which.min(modelo3$cptable[, "xerror"]), "CP"]
+modelo3_podado <- prune(modelo3, cp = mejor_cp)
+```
+
+Visualizamos el árbol despúes de la poda
+```{r}
+rpart.plot(modelo3_podado, type = 2, extra = 104)
+```
+
+  - Es el mismo modelo que el primero y el segundo.
+
+  - Si las variables del conjunto no tienen poder explicativo suficiente sobre la variable objetivo (en tu caso, Churn), entonces aunque cambies los hiperparámetros o criterios de división, el árbol seguirá dando resultados similares y no será muy bueno prediciendo.
+  
+  - Si el árbol por sí solo no mejora hay que considerar modelos más complejos,
+  
+```{r}
+modelo3_podado$variable.importance
+```
+
+  - El modelo depende mucho de "contrato", "antigüedad" y "cobro total" para hacer predicciones.
+  
+  - "pareja" es muy poco utilizada, y podríamos incluso evaluar si es útil conservarla, dependiendo del contexto.
+
+
+#**Modelo 4**
+
+```{r}
+clientes_train2 <- clientes_train[, !(names(clientes_train) %in% c("pareja", "respaldo", "multi_lineas"))]
+clientes_test2 <- clientes_test[, !(names(clientes_test) %in% c("pareja", "respaldo", "multi_lineas"))]
+```
+
+Entrenamiento del árbol con el índice de Gini
+```{r}
+# Entrenamiento del árbol con índice Gini
+modelo4 <- rpart(abandono ~ ., data = clientes_train2, method = "class", parms = list(split = "gini"))
+```
+
+Visualizamos el árbol
+```{r}
+rpart.plot(modelo4, type = 2, extra = 104)
+```
+
+  - Se mantiene el mismo modelo.

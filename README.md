@@ -28,6 +28,13 @@ El repositorio está dividido en las siguientes secciones:
 | **Carpeta/Archivo**      | **Descripción**                                          |
 |--------------------------|----------------------------------------------------------|
 | `SESION 1`              |                                     |
+| `SESION 2`              |                                     |
+| `SESION 3`              |                                     |
+| `SESION 4`              |                                     |
+| `SESION 5`              |                                     |
+| `SESION 6`              |                                     |
+| `SESION 7`              |                                     |
+| `SESION 8`              |                                     |
 | `README.md`               | Este archivo, con detalles sobre el curso y el repositorio|
 
 ---

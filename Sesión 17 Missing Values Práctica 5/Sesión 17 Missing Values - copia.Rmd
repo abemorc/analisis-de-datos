@@ -1,0 +1,72 @@
+---
+title: 'Sesión 17: Missing Values'
+author: ""
+date: "2025-02-14"
+output: html_document
+---
+
+Cargamos las librerías a utilizar
+```{r, message=FALSE, warning=FALSE}
+
+```
+
+Importamos la base de datos a trabajar
+```{r}
+
+```
+
+La base de datos se cconforma de las siguientes variables:
+
+  id → Identificación
+  chol → Colesterol
+  stab.glu → Glucosa en ayunas
+  hdl → Colesterol HDL
+  ratio → Relación colesterol total/HDL
+  glyhb → Hemoglobina glicosilada
+  location → Ubicación
+  age → Edad
+  gender → Género
+  height → Estatura
+  weight → Peso
+  frame → Complexión
+  bp.1s → Presión arterial sistólica (1ra medición)
+  bp.1d → Presión arterial diastólica (1ra medición)
+  bp.2s → Presión arterial sistólica (2da medición)
+  bp.2d → Presión arterial diastólica (2da medición)
+  waist → Cintura
+  hip → Cadera
+  time.ppn → Tiempo postprandial (después de comer) en minutos
+
+# Continuación librería dplyr
+
+6. summarise: Genera un resumen de estadísticas descriptivas.
+```{r}
+
+```
+
+7. group_by: Agrupa el data.frame por una o más variables categóricas. Es util cuando queremos realizar estadísticas descriptivas por grupos.
+```{r}
+
+```
+
+## Missing values
+
+Los valores faltantes o "missing values" son comunes en muchos conjuntos de datos y pueden influir negativamente en los análisis. En R, estos valores se representan como NA (Not Available).
+
+Podemos identificar los id de las personas que tienen al menos un valor NA en cualquiera de sus variables o en una variable específica.
+
+```{r}
+
+```
+
+Podemos eliminar "remover" las filas que contienen valores NA. La función drop_na() de dplyr nos permite realizar esta acción.
+
+```{r}
+
+```
+
+Podemo realizar la acción de imputar lo que significa reemplazar los valores faltantes (NA) con un valor estimado o razonable basado en los datos disponibles. La imputación se usa para evitar la pérdida de información al eliminar filas completas con valores faltantes.
+
+```{r}
+
+```

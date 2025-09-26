@@ -1,0 +1,182 @@
+---
+title: "LDA Ejemplo Hipotecario"
+author: "David Nexticapan Cortes"
+date: "2024-03-30"
+output: word_document
+---
+
+Cargamos las librerías
+```{r}
+library(readxl)
+library(ggplot2)
+library(ggpubr)
+library(MVN) # Prueba de normalidad multivariada.
+library(car)
+library(biotools) # test de Matriz de Covarianzas
+library(MASS) #Para poder usar la función lda/qda
+library(GGally) # Para el pairplot
+library(caTools) # sample.split
+library(dplyr)
+library(caret) # Matriz de confusión
+```
+
+Cargamos la base de datos
+```{r}
+df_clientes <- read_excel("Hipotecas.xlsx")
+head(df_clientes)
+```
+
+**Análisis Exploratorio**
+
+Verificamos la presencia de missing values.
+```{r}
+colSums(is.na(df_clientes)) # No hay presencia de missing values.
+```
+
+Verificamos la clase a la que pertenecen nuestras variables.
+```{r}
+str(df_clientes) # Tenemos la variable Aprobacion" como tipo character.
+glimpse(df_clientes)
+df_clientes$Aprobacion<- factor(df_clientes$Aprobacion) # Convertimos a factor.
+```
+
+Realizamos un pairplot.
+```{r, warning=FALSE, message=FALSE}
+ggpairs(data = df_clientes, aes(color = Aprobacion))
+```
+
+  - Parece ser que las variables Ingreso Mensual y Monto de Préstamo diferencian moderadamente a las clases. Entre mayor sea el ingreso mensual tendrá la aprobación y entre mayor sea el monto del préstamo, tendrá la aprobación. 
+  
+  - Las variables Historial Crediticio y Edad no proporcionan con certeza la diferencia entre las clases.
+  
+**Verificamos los supuestos del modelo**
+
+Dividimos nuestros datos en "Entrenamiento" y "Prueba"
+```{r}
+set.seed(42)
+barajeado <- slice_sample(df_clientes, prop = 1)
+split <- sample.split(barajeado$Aprobacion, SplitRatio = 0.8) # Vector lógico 
+clientes_train <- subset(barajeado, split == TRUE)
+clientes_test <- subset(barajeado, split == FALSE)
+```
+
+Verificar la normalidad de los datos para cada variable en cada grupo.
+```{r}
+vars <- names(clientes_train)[-5]  # Excluimos la columna "Aprobacion"
+sapply(vars, function(var) {
+  tapply(clientes_train[[var]], clientes_train$Aprobacion, function(x) {
+    p <- shapiro.test(x)$p.value
+    if (p > 0.05) {
+      return(paste0("p = ", round(p, 4), " → Normal"))
+    } else {
+      return(paste0("p = ", round(p, 4), " → No normal"))
+    }
+  })
+})
+```
+
+Verificamos la normalidad multivariada.
+
+Paso previo: Identificamos la presencia de outliers con la prueba de Henze-Zirkler, para decidir el tipo de prueba de normalidad multivariada más adecuada.
+```{r}
+mvn(data = subset(clientes_train, Aprobacion == "No")[,-5], mvnTest = "royston", multivariateOutlierMethod = "quan")
+mvn(data = subset(clientes_train, Aprobacion == "Sí")[,-5], mvnTest = "royston", multivariateOutlierMethod = "quan")
+
+mvn(data = subset(clientes_train, Aprobacion == "No")[,-5], mvnTest = "hz", multivariateOutlierMethod = "quan")
+mvn(data = subset(clientes_train, Aprobacion == "Sí")[,-5], mvnTest = "hz", multivariateOutlierMethod = "quan")
+```
+
+  - No tenemos normalidad multivariada en los casos Negativos.
+  
+  - Sí tenemos normalidad multivariada en los casos Positivos.
+
+**Homogeniedad de varianzas y la homogeniedad de matrices de covarianza**
+
+Homogeniedad de varianzas:
+  
+  Hipótesis nula (H₀): Las varianzas son iguales en todos los grupos.
+  Hipótesis alternativa (H₁): Las varianzas no son iguales en todos los grupos.
+  
+```{r}
+names(clientes_train)
+leveneTest(Ingreso_Mensual ~ Aprobacion, data = clientes_train) # La varianzas no son iguales
+leveneTest(Monto_Prestamo ~ Aprobacion, data = clientes_train) # Las varianzas son iguales
+leveneTest(Historial_Crediticio ~ Aprobacion, data = clientes_train) # Las varianzas son iguales
+leveneTest(Edad ~ Aprobacion, data = clientes_train) # Las varianzas son iguales
+```
+
+**Homogeniedad de matrices de covarianza**
+   
+   Ho: La matriz de covarianza es igual en todos los grupos.
+   H1: La matriz de covarianza es diferente en todos los grupos.
+
+Calculamos las matrices de covarianza
+```{r}
+clientes_no <- subset(clientes_train, Aprobacion == "No")
+clientes_si <- subset(clientes_train, Aprobacion == "Sí")
+cov(clientes_no[,-5]); cov(clientes_si[,-5])
+```
+
+Realizamos el test
+```{r}
+boxM(data = clientes_train[,-5], grouping = clientes_train$Aprobacion) # Las matrices de covarianza si son iguales.
+```
+
+**Estimación de coeficientes para el modelo LDA**
+
+```{r}
+modelo_lda <- lda(Aprobacion ~ ., data = clientes_train)
+modelo_lda$scaling
+```
+
+**Realizamos predicciones**
+
+```{r}
+predicciones <- predict(object = modelo_lda, newdata = clientes_test)
+predicciones$posterior # Probabilidades Posteriores.
+clase_predicha <- predicciones$class # Clasificación.
+
+```
+
+**Generamos la matriz de Confusión**
+
+![](Matriz.jpg)
+
+```{r}
+dato_real <- factor(clientes_test$Aprobacion, levels = levels(clientes_test$Aprobacion))
+dato_predicho <- factor(clase_predicha, levels = levels(clientes_test$Aprobacion))
+
+# Matriz de confusión y métricas
+conf_matrix <- confusionMatrix(data = dato_predicho, reference = dato_real, positive = "Sí")
+print(conf_matrix$table)
+
+# Métricas individuales
+accuracy <- conf_matrix$overall["Accuracy"] # Proporción total de predicciones correctas.
+precision <- conf_matrix$byClass["Precision"]
+recall <- conf_matrix$byClass["Recall"]
+f1 <- conf_matrix$byClass["F1"]
+
+# Imprimir métricas
+cat("Accuracy (Exactitud):", accuracy, "\n")
+cat("Precision (Precisión):", precision, "\n")
+cat("Recall (Sensibilidad):", recall, "\n")
+cat("F1 Score:", f1, "\n")
+```
+
+  Notas: Realizar los ajustes
+  
+  - Verdaderos negativos (TN = 8): El modelo clasificó correctamente a 8 clientes como "crédito no aprobado", y efectivamente no se les aprobó.
+  
+  - Verdaderos positivos (TP = 9): El modelo clasificó correctamente a 9 clientes como "crédito aprobado", y efectivamente sí se les aprobó.
+  
+  - Falsos negativos (FN = 1): El modelo clasificó erróneamente a 1 cliente como "crédito no aprobado", cuando en realidad sí se le aprobó.
+  
+  - Falsos positivos (FP = 2): El modelo clasificó erróneamente a 2 clientes como "crédito aprobado", cuando en realidad no se les aprobó.
+  
+  - Exactitud (Accuracy = 85%): El modelo acertó en el 85% de los casos, tanto al predecir correctamente los créditos aprobados como los no aprobados. Este valor refleja un buen rendimiento global del modelo.
+
+  - Precisión (Precision = 81.82%): De todos los clientes que el modelo predijo como "créditos aprobados", el 81.82% efectivamente lo estaban. Esta métrica es clave si se desea minimizar los falsos positivos.
+  
+  - Sensibilidad o Recall (90%): El modelo identificó correctamente al 90% de los clientes con crédito aprobado. Solo dejó pasar el 10%, lo que indica una alta capacidad para detectar aprobaciones reales.
+
+  - F1 Score (85.71%): Esta métrica balancea precisión y sensibilidad. Un F1 cercano a 1 implica que el modelo logra un buen equilibrio entre minimizar falsos positivos y falsos negativos.
